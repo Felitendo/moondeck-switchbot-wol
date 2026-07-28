@@ -155,10 +155,18 @@ trigger_secret=""
 trigger_port=""
 trigger_host=""
 if ui_yesno "$TITLE" "$(t trigger_ask)"; then
-    trigger_secret=$(ui_password "$TITLE" "$(t trigger_secret)") || abort
-    [[ -n $trigger_secret ]] || fail "$(t input_empty)"
-    trigger_port=$(ui_input "$TITLE" "$(t trigger_port)" "58471") || abort
-    trigger_host=$(ui_input "$TITLE" "$(t trigger_host)" "") || abort
+    while true; do
+        pairing_token=$(ui_input "$TITLE" "$(t trigger_token)" "") || abort
+        [[ -n $pairing_token ]] || fail "$(t input_empty)"
+
+        decoded=$(printf '%s' "$pairing_token" | tr -d '[:space:]' | base64 -d 2>/dev/null) || decoded=""
+        IFS='|' read -r token_version trigger_host trigger_port trigger_secret <<<"$decoded"
+        if [[ $token_version == 1 && -n $trigger_secret && $trigger_port =~ ^[0-9]+$ ]]; then
+            break
+        fi
+        trigger_secret=""
+        ui_error "$TITLE" "$(t trigger_bad_token)"
+    done
 fi
 
 install -D -m 600 /dev/null "$CONFIG_FILE" 2>/dev/null || fail "$(t write_failed "$CONFIG_FILE")"

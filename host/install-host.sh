@@ -118,8 +118,31 @@ remove_everything() {
     ui_info "$TITLE" "$(t host_uninstall_done)"
 }
 
+local_address() {
+    ip -4 -o addr show scope global 2>/dev/null |
+        awk '$2 !~ /^(docker|virbr|br-)/ {split($4, a, "/"); print a[1]; exit}'
+}
+
+# Everything the Deck needs in a single string, so nobody has to retype three
+# fields on a handheld. The address in it is only a fallback, see the wake-up
+# script for the order the addresses are tried in.
+pairing_token() {
+    local secret=$1 port=$2
+    printf '1|%s|%s|%s' "$(local_address)" "$port" "$secret" | base64 -w0
+}
+
 if [[ ${1:-} == --uninstall ]]; then
     remove_everything
+    exit 0
+fi
+
+# Hand out the token again without touching a working installation.
+if [[ ${1:-} == --token ]]; then
+    [[ -r $CONFIG_DIR/secret ]] || fail "$(t host_not_installed)"
+    installed_port=$(sed -n 's/^ListenStream=//p' \
+        "$UNIT_DIR/moondeck-login-agent.socket" 2>/dev/null | tail -1)
+    ui_info "$TITLE" "$(t host_token \
+        "$(pairing_token "$(cat "$CONFIG_DIR/secret")" "${installed_port:-58471}")")"
     exit 0
 fi
 
@@ -155,7 +178,9 @@ target_session=$(ui_choose "$TITLE" "$(t host_ask_session)" "${session_choices[@
 port=$(ui_input "$TITLE" "$(t host_ask_port)" "58471") || abort
 [[ $port =~ ^[0-9]+$ ]] && ((port > 0 && port < 65536)) || fail "$(t host_bad_port "$port")"
 
-secret=$(openssl rand -hex 32)
+# 128 bit is plenty for an HMAC key and keeps the pairing token short enough
+# to be pasted comfortably on a handheld.
+secret=$(openssl rand -hex 16)
 
 install -D -m 755 "$HOST_DIR/moondeck-login-agent" "$AGENT_TARGET"
 install -d -m 755 "$CONFIG_DIR"
@@ -186,13 +211,10 @@ if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -qi '^Status:
     fi
 fi
 
-address_hint=$(ip -4 -o addr show scope global 2>/dev/null |
-    awk '$2 !~ /^(docker|virbr|br-)/ {split($4, a, "/"); print a[1]; exit}')
-
 if [[ -n $subnet ]]; then
     ui_info "$TITLE" "$(t host_ufw_added "$subnet" "$port")"
 else
     ui_info "$TITLE" "$(t host_ufw_skipped "$port")"
 fi
 
-ui_info "$TITLE" "$(t host_done "$address_hint" "$port" "$secret")"
+ui_info "$TITLE" "$(t host_done "$(pairing_token "$secret" "$port")")"

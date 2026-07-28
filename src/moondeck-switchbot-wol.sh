@@ -123,34 +123,43 @@ trigger_login() {
 }
 export -f trigger_login
 
-# The host needs to boot first, so keep knocking until it answers.
+# The host needs to boot first, so keep knocking until it answers. Several
+# addresses are tried per round: whatever MoonDeck handed over wins, because
+# that is the one it reaches the host on itself, which survives a new DHCP
+# lease. The address noted at setup time is only the last resort.
 arm_login() {
-    local host=$1 deadline answer
-    [[ -n $host ]] || die "no host address for the login trigger"
+    local -a candidates=()
+    local candidate deadline answer
+
+    for candidate in "$@"; do
+        [[ -n $candidate ]] && candidates+=("$candidate")
+    done
+    ((${#candidates[@]} > 0)) || die "no host address for the login trigger"
+
     deadline=$(($(date +%s) + LOGIN_TRIGGER_TIMEOUT))
-    log "waiting for $host:$LOGIN_TRIGGER_PORT to take the login trigger"
+    log "waiting for ${candidates[*]} on port $LOGIN_TRIGGER_PORT to take the login trigger"
 
     while (($(date +%s) < deadline)); do
-        if answer=$(MOONDECK_LOGIN_SECRET="$LOGIN_TRIGGER_SECRET" \
-            timeout 30 bash -c 'trigger_login "$0" "$1"' "$host" "$LOGIN_TRIGGER_PORT"); then
-            log "host answered: $answer"
-            return 0
-        fi
-        [[ -n ${answer:-} ]] && log "host answered: $answer"
+        for candidate in "${candidates[@]}"; do
+            if answer=$(MOONDECK_LOGIN_SECRET="$LOGIN_TRIGGER_SECRET" \
+                timeout 30 bash -c 'trigger_login "$0" "$1"' "$candidate" "$LOGIN_TRIGGER_PORT"); then
+                log "$candidate answered: $answer"
+                return 0
+            fi
+            [[ -n ${answer:-} ]] && log "$candidate answered: $answer"
+        done
         sleep 5
     done
 
-    log "the host never took the login trigger within ${LOGIN_TRIGGER_TIMEOUT}s"
+    log "no host took the login trigger within ${LOGIN_TRIGGER_TIMEOUT}s"
     return 1
 }
 
 if [[ $mode == arm ]]; then
     [[ -n $LOGIN_TRIGGER_SECRET ]] || die "no LOGIN_TRIGGER_SECRET in $CONFIG_FILE"
-    arm_login "${1:-}"
+    arm_login "$@"
     exit $?
 fi
-
-host_argument=${2:-${1:-}}
 log "invoked with: ${*:-<no arguments>}"
 
 now=$(date +%s)
@@ -205,14 +214,18 @@ log "SwitchBot command '$COMMAND' sent successfully"
 # trying in the background. Its output must not stay attached to MoonDeck,
 # which reads this process' stdout until it closes.
 if [[ -n $LOGIN_TRIGGER_SECRET ]]; then
-    trigger_host=${LOGIN_TRIGGER_HOST:-$host_argument}
-    if [[ -z $trigger_host ]]; then
+    # $2 is the address MoonDeck uses itself, $1 its host name, and only then
+    # whatever was noted when the trigger was set up.
+    trigger_candidates=("${2:-}" "${1:-}" "$LOGIN_TRIGGER_HOST")
+    if [[ -z ${trigger_candidates[0]}${trigger_candidates[1]}${trigger_candidates[2]} ]]; then
         log "no host address available, skipping the login trigger"
     elif command -v setsid >/dev/null 2>&1; then
-        setsid "$SELF" --arm-login "$trigger_host" >/dev/null 2>>"$LOG_FILE" </dev/null &
-        log "login trigger for $trigger_host handed off to the background"
+        setsid "$SELF" --arm-login "${trigger_candidates[@]}" \
+            >/dev/null 2>>"$LOG_FILE" </dev/null &
+        log "login trigger handed off to the background"
     else
-        ("$SELF" --arm-login "$trigger_host" >/dev/null 2>>"$LOG_FILE" </dev/null &)
-        log "login trigger for $trigger_host handed off to the background"
+        ("$SELF" --arm-login "${trigger_candidates[@]}" \
+            >/dev/null 2>>"$LOG_FILE" </dev/null &)
+        log "login trigger handed off to the background"
     fi
 fi

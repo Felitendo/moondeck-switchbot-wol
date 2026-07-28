@@ -80,8 +80,22 @@ Run it without sudo in front, it asks for root itself. `sudo curl … | sudo bas
 
 It asks which user and session to log in, generates the secret, installs a
 socket-activated systemd service and, if `ufw` is active, opens the port for
-your local subnet only. Then re-run `./install.sh` on the Deck and answer yes
-when it offers the login trigger, using the secret the host printed.
+your local subnet only. At the end it prints a single pairing token that
+carries the port, the secret and the host's current address — re-run the
+installer on the Deck, answer yes when it offers the login trigger and paste
+that one line, instead of typing three fields on a handheld keyboard.
+
+An existing installation can hand out its token again at any time, without
+changing anything:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh | bash -s -- --token
+```
+
+DHCP is not a problem. The address inside the token is only the last resort:
+the Deck first tries the address MoonDeck passed to the wake-up script, then
+the host name, and only then the noted one. Whatever MoonDeck itself reaches
+the host on works for the trigger too.
 
 What it changes on the host: only the `User=` entry in the `[Autologin]`
 section of `/etc/plasmalogin.conf` (or `/etc/sddm.conf`), added when a valid
@@ -115,7 +129,7 @@ you and will ask separately when an application first wants a stored secret.
 | `INSTALL_PATH` | Where the script was installed, used by `uninstall.sh` |
 | `LOGIN_TRIGGER_SECRET` | Secret from `host/install-host.sh`; empty disables the whole trigger |
 | `LOGIN_TRIGGER_PORT` | Port the trigger listens on, `58471` by default |
-| `LOGIN_TRIGGER_HOST` | Host address; empty means the one MoonDeck passes in |
+| `LOGIN_TRIGGER_HOST` | Fallback address, tried after the ones MoonDeck passes in |
 | `LOGIN_TRIGGER_TIMEOUT` | Seconds to keep knocking while the host boots, `240` by default |
 
 The cooldown exists because a power button is not a magic packet: sending the same packet twice is harmless, pressing the button again while the machine is booting is not. Re-run `install.sh` at any time to change any of this.
