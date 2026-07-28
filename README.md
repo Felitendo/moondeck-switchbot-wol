@@ -94,8 +94,11 @@ hands: enter the API credentials here, pick the device from the list it
 fetches, and all of it goes into the pairing token as well. Nothing of that is
 stored on the host — it only travels inside the token.
 
-At the end it prints that token: one line carrying the port, the trigger
-secret, the host address and, if you said yes, the SwitchBot setup. On the Deck
+At the end it hands you that token — one line carrying the port, the trigger
+secret, the host address and, if you said yes, the SwitchBot setup — in a
+selectable text field, and on the clipboard if a clipboard helper is around. A
+message box would have been the wrong widget: kdialog elides long lines in the
+middle, and text in a message box cannot be selected at all. On the Deck
 you then answer yes to the very first question, paste it, and the wizard skips
 everything the token already knows. Typing an API token on a handheld keyboard
 is exactly the kind of thing this avoids.

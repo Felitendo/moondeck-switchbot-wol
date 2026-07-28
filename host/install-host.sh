@@ -240,6 +240,14 @@ print(base64.b64encode(raw).decode("ascii"))
 '
 }
 
+# The token is long and has to be copied, so it belongs in a text field rather
+# than a message box, and on the clipboard when that is possible at all.
+show_token() {
+    local key=$1 token=$2 note=""
+    ui_clipboard "$token" && note=$(t host_token_clipboard)
+    ui_text_output "$TITLE" "$(t "$key" "$note")" "$token"
+}
+
 if [[ $MODE == uninstall ]]; then
     run_privileged --apply-uninstall || fail "$(t host_privileged_failed)"
     ui_info "$TITLE" "$(t host_uninstall_done)"
@@ -252,7 +260,7 @@ if [[ $MODE == token ]]; then
     [[ -n $secret ]] || fail "$(t host_not_installed)"
     port=$(sudo sed -n 's/^ListenStream=//p' \
         "$UNIT_DIR/moondeck-login-agent.socket" 2>/dev/null | tail -1)
-    ui_info "$TITLE" "$(t host_token "$(pairing_token "${port:-58471}" "$secret")")"
+    show_token host_token "$(pairing_token "${port:-58471}" "$secret")"
     exit 0
 fi
 
@@ -389,5 +397,5 @@ if compgen -G "$user_home/.local/share/kwalletd/*.kwl" >/dev/null 2>&1; then
 fi
 [[ -n $locked_stores ]] && ui_info "$TITLE" "$(t host_keyring_warning "$locked_stores")"
 
-ui_info "$TITLE" "$(t host_done "$(pairing_token "$port" "$effective_secret" \
-    "$sb_token" "$sb_secret" "$sb_device" "$sb_command")")"
+show_token host_done "$(pairing_token "$port" "$effective_secret" \
+    "$sb_token" "$sb_secret" "$sb_device" "$sb_command")"

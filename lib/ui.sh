@@ -84,6 +84,40 @@ ui_password() {
     esac
 }
 
+# ui_text_output <title> <label> <text>
+#
+# For something the user has to copy. A message box is the wrong widget: kdialog
+# elides long lines in the middle, and neither backend lets you select text in
+# one. A text field can be selected, scrolled and copied from.
+ui_text_output() {
+    local title=$1 label=$2 text=$3
+    case $MSB_UI in
+        kdialog) kdialog --title "$title" --textinputbox "$label" "$text" >/dev/null || true ;;
+        zenity)
+            printf '%s' "$text" |
+                zenity --text-info --title="$title" --width=760 --height=320 >/dev/null || true
+            ;;
+        *) printf '\n%s\n%s\n\n%s\n\n' "$title" "$label" "$text" ;;
+    esac
+}
+
+# Put something on the clipboard, if a tool for it exists. Only stdin based
+# ones: handing a secret to a clipboard helper on the command line would put it
+# in the process list for every other user to read.
+ui_clipboard() {
+    local text=$1
+    if [[ -n ${WAYLAND_DISPLAY:-} ]] && command -v wl-copy >/dev/null 2>&1; then
+        printf '%s' "$text" | wl-copy 2>/dev/null && return 0
+    fi
+    if [[ -n ${DISPLAY:-} ]] && command -v xclip >/dev/null 2>&1; then
+        printf '%s' "$text" | xclip -selection clipboard 2>/dev/null && return 0
+    fi
+    if [[ -n ${DISPLAY:-} ]] && command -v xsel >/dev/null 2>&1; then
+        printf '%s' "$text" | xsel --clipboard --input 2>/dev/null && return 0
+    fi
+    return 1
+}
+
 msb_qdbus() {
     local candidate
     for candidate in qdbus qdbus6 qdbus-qt6 qdbus-qt5; do
