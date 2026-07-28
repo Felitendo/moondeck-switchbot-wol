@@ -27,11 +27,13 @@ import hashlib
 import hmac
 import json
 import os
+import socket
 import signal
 import subprocess
 import sys
 import secrets
 import time
+import urllib.request
 
 CONFIG_FILE = "/etc/moondeck-login-agent/config"
 SECRET_FILE = "/etc/moondeck-login-agent/secret"
@@ -59,7 +61,17 @@ def reply(message):
 
 
 def read_config():
-    config = {"User": "", "Session": "plasma.desktop"}
+    config = {
+        "User": "",
+        "Session": "plasma.desktop",
+        "NtfyServer": "https://ntfy.sh",
+        "NtfyTopic": "",
+        "NtfyTitle": "Host is ready",
+        "NtfyMessage": "The host finished booting and is logged in.",
+        "NtfyMessageNoStream": "The host is logged in, but nothing is listening on the stream port.",
+        "NtfyMessageFailed": "The host booted, but logging in did not work.",
+        "ReadyPort": "47989",
+    }
     path = path_of("MOONDECK_LOGIN_CONFIG", CONFIG_FILE)
     with open(path, encoding="utf-8") as handle:
         for line in handle:
@@ -249,6 +261,57 @@ def wait_for_session(user):
     return False
 
 
+def wait_for_stream_port(port, timeout=60):
+    """Session up is not the same as ready to stream: Sunshine starts a moment
+    later. Waiting for its port makes the notification mean what it says."""
+    if not port:
+        return True
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=2):
+                return True
+        except OSError:
+            time.sleep(2)
+    return False
+
+
+def notify(config, message):
+    topic = config.get("NtfyTopic", "")
+    if not topic:
+        return
+    server = config.get("NtfyServer", "https://ntfy.sh").rstrip("/")
+    # JSON rather than headers, so umlauts in the message survive the trip
+    payload = json.dumps({
+        "topic": topic,
+        "title": config.get("NtfyTitle", "Host is ready"),
+        "message": message,
+        "tags": ["desktop_computer"],
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        server, data=payload, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            log("ntfy accepted the notification (%s)" % response.status)
+    except Exception as error:  # noqa: BLE001 - a push must never fail the login
+        log("could not send the ntfy notification: %s" % error)
+
+
+def announce(config, logged_in):
+    if not logged_in:
+        notify(config, config["NtfyMessageFailed"])
+        return
+    try:
+        port = int(config.get("ReadyPort") or 0)
+    except ValueError:
+        port = 0
+    if wait_for_stream_port(port):
+        notify(config, config["NtfyMessage"])
+    else:
+        log("nothing listening on port %s" % port)
+        notify(config, config["NtfyMessageNoStream"])
+
+
 def handle_request():
     config = read_config()
     secret = read_secret()
@@ -281,9 +344,11 @@ def handle_request():
         disarm_autologin()
         return 1
 
-    if not wait_for_session(config["User"]):
+    logged_in = wait_for_session(config["User"])
+    if not logged_in:
         log("no session showed up within %ss, disarming anyway" % SESSION_WAIT)
     disarm_autologin()
+    announce(config, logged_in)
     return 0
 
 

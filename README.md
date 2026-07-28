@@ -111,9 +111,42 @@ Remove all of it again with:
 curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh | bash -s -- --uninstall
 ```
 
-Worth knowing: whoever holds the Deck can log into your host. And with
-autologin, PAM never sees your password, so KDE Wallet cannot be unlocked for
-you and will ask separately when an application first wants a stored secret.
+### Getting told when the host is ready
+
+The host installer can optionally send a push through [ntfy](https://ntfy.sh)
+when the wake-up is done. It waits for the session to appear and then for
+Sunshine's port to accept a connection, so the message means "connect now"
+rather than "the button was pressed". Different messages go out when the login
+did not happen or when nothing is listening on the stream port.
+
+The server defaults to `https://ntfy.sh`, any self-hosted instance works just as
+well, and leaving the topic empty keeps the whole thing off. Pick a topic name
+nobody can guess: on a public server, knowing the topic is enough to read your
+notifications and to post into them.
+
+This only covers wake-ups that went through the trigger. A machine switched on
+by hand never runs the agent and therefore never reports in.
+
+Beyond `User` and `Session`, `/etc/moondeck-login-agent/config` takes
+`NtfyServer`, `NtfyTopic`, `NtfyTitle`, `NtfyMessage`, `NtfyMessageNoStream`,
+`NtfyMessageFailed` and `ReadyPort` (`47989`, Sunshine's port; `0` skips the
+wait).
+
+### Password protected keyrings
+
+Whoever holds the Deck can log into your host — that is the deal you are making.
+
+The other consequence is less obvious: an automatic login means PAM never sees
+a password, so it has none to pass on to `pam_gnome_keyring` or `pam_kwallet`.
+Any keyring that has its own password therefore stays locked, and the first
+application that wants a stored secret opens a password dialog on the desktop —
+mid-stream, if you are unlucky. This is not specific to this project, it is what
+automatic login does everywhere.
+
+The only way out is a keyring without a password (seahorse for gnome-keyring,
+the KWallet settings for KWallet), which leaves those secrets unencrypted on
+disk. The host installer looks for such a keyring and says so at the end rather
+than letting the dialog surprise you later.
 
 ## Configuration
 

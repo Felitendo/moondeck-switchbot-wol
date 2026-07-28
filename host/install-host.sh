@@ -178,14 +178,35 @@ target_session=$(ui_choose "$TITLE" "$(t host_ask_session)" "${session_choices[@
 port=$(ui_input "$TITLE" "$(t host_ask_port)" "58471") || abort
 [[ $port =~ ^[0-9]+$ ]] && ((port > 0 && port < 65536)) || fail "$(t host_bad_port "$port")"
 
+ntfy_topic=""
+ntfy_server=""
+if ui_yesno "$TITLE" "$(t host_ntfy_ask)"; then
+    ntfy_topic=$(ui_input "$TITLE" "$(t host_ntfy_topic)" "") || abort
+    [[ -n $ntfy_topic ]] || fail "$(t input_empty)"
+    ntfy_server=$(ui_input "$TITLE" "$(t host_ntfy_server)" "https://ntfy.sh") || abort
+fi
+
 # 128 bit is plenty for an HMAC key and keeps the pairing token short enough
 # to be pasted comfortably on a handheld.
 secret=$(openssl rand -hex 16)
 
 install -D -m 755 "$HOST_DIR/moondeck-login-agent" "$AGENT_TARGET"
 install -d -m 755 "$CONFIG_DIR"
-printf '# written by install-host.sh\nUser=%s\nSession=%s\n' \
-    "$target_user" "$target_session" >"$CONFIG_DIR/config"
+{
+    printf '# written by install-host.sh\n'
+    printf 'User=%s\n' "$target_user"
+    printf 'Session=%s\n' "$target_session"
+    if [[ -n $ntfy_topic ]]; then
+        printf 'NtfyServer=%s\n' "${ntfy_server:-https://ntfy.sh}"
+        printf 'NtfyTopic=%s\n' "$ntfy_topic"
+        printf 'NtfyTitle=%s\n' "$(t host_ntfy_title)"
+        printf 'NtfyMessage=%s\n' "$(t host_ntfy_ready "$(uname -n)")"
+        printf 'NtfyMessageNoStream=%s\n' "$(t host_ntfy_nostream "$(uname -n)")"
+        printf 'NtfyMessageFailed=%s\n' "$(t host_ntfy_failed "$(uname -n)")"
+        printf '# Port that has to answer before the ready push goes out, 0 skips the wait.\n'
+        printf 'ReadyPort=47989\n'
+    fi
+} >"$CONFIG_DIR/config"
 chmod 644 "$CONFIG_DIR/config"
 install -m 600 /dev/null "$CONFIG_DIR/secret"
 printf '%s' "$secret" >"$CONFIG_DIR/secret"
@@ -216,5 +237,18 @@ if [[ -n $subnet ]]; then
 else
     ui_info "$TITLE" "$(t host_ufw_skipped "$port")"
 fi
+
+# Autologin means PAM never sees a password, so anything that would normally
+# be unlocked with it stays locked. Better to say so now than to have a
+# password dialog appear out of nowhere later.
+user_home=$(getent passwd "$target_user" | cut -d: -f6)
+locked_stores=""
+if compgen -G "$user_home/.local/share/keyrings/*.keyring" >/dev/null 2>&1; then
+    locked_stores="gnome-keyring"
+fi
+if compgen -G "$user_home/.local/share/kwalletd/*.kwl" >/dev/null 2>&1; then
+    locked_stores="${locked_stores:+$locked_stores, }KWallet"
+fi
+[[ -n $locked_stores ]] && ui_info "$TITLE" "$(t host_keyring_warning "$locked_stores")"
 
 ui_info "$TITLE" "$(t host_done "$(pairing_token "$secret" "$port")")"
