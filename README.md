@@ -4,7 +4,7 @@ Wake your gaming PC from the Steam Deck with a [SwitchBot](https://www.switch-bo
 
 [MoonDeck](https://github.com/FrogTheFrog/moondeck) can call a custom executable in place of sending a magic packet. This repository ships that executable: it asks the SwitchBot cloud to physically push the power button of your host PC. Useful when the mainboard, the NIC or the BIOS refuses to do Wake-on-LAN properly, and the button is the only thing that reliably works.
 
-The installer is a small wizard — it explains where to find your API credentials, fetches your device list and lets you pick the right SwitchBot from a list, so you never have to look up a device ID by hand. It speaks English and German and follows the system locale.
+The installer is a small wizard — it explains where to find your API credentials, fetches your device list and lets you pick the right SwitchBot from a list, so you never have to look up a device ID by hand. Every prompt, message and notification exists in English and German and follows the system locale; `MOONDECK_SWITCHBOT_LANG=en|de` overrides it.
 
 ## Requirements
 
@@ -134,9 +134,15 @@ curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/ma
 
 The host installer can optionally send a push through [ntfy](https://ntfy.sh)
 when the wake-up is done. It waits for the session to appear and then for
-Sunshine's port to accept a connection, so the message means "connect now"
-rather than "the button was pressed". Different messages go out when the login
-did not happen or when nothing is listening on the stream port.
+something to accept a connection on `ReadyPort`, so the message means "connect
+now" rather than "the button was pressed". Different messages go out when the
+login did not happen or when nothing is listening there.
+
+Nothing here starts, installs or supervises Sunshine — it is only ever asked,
+by way of a TCP connection, whether it is up. `ReadyPort` defaults to `47989`
+because that is Sunshine's; point it at whatever your streaming host listens on,
+or set it to `0` to skip the wait and send the push as soon as the session
+exists.
 
 The server defaults to `https://ntfy.sh`, any self-hosted instance works just as
 well, and leaving the topic empty keeps the whole thing off. Pick a topic name

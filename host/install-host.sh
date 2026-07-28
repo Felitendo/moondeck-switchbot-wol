@@ -174,13 +174,16 @@ apply_installation() {
     systemctl enable --now moondeck-login-agent.socket >/dev/null
     systemctl enable moondeck-login-disarm.service >/dev/null
 
+    local firewall=skipped
     if [[ -n ${A[Subnet]:-} ]] && command -v ufw >/dev/null 2>&1 &&
         ufw status 2>/dev/null | grep -qi '^Status: active'; then
         ufw allow from "${A[Subnet]}" to any port "${A[Port]}" proto tcp \
             comment "$UFW_COMMENT" >/dev/null
+        firewall=added
     fi
 
-    printf '%s\n' "$secret"
+    # first line the secret, second what happened to the firewall
+    printf '%s\n%s\n' "$secret" "$firewall"
 }
 
 case $MODE in
@@ -375,14 +378,20 @@ chmod 600 "$answers"
     fi
 } >"$answers"
 
-effective_secret=$(run_privileged --apply "$answers") || {
+applied=$(run_privileged --apply "$answers") || {
     rm -f "$answers"
     fail "$(t host_privileged_failed)"
 }
 rm -f "$answers"
+effective_secret=$(printf '%s' "$applied" | sed -n 1p)
+firewall=$(printf '%s' "$applied" | sed -n 2p)
 [[ -n $effective_secret ]] || fail "$(t host_privileged_failed)"
 
-[[ -n $subnet ]] && ui_info "$TITLE" "$(t host_ufw_added "$subnet" "$port")"
+if [[ $firewall == added ]]; then
+    ui_info "$TITLE" "$(t host_ufw_added "$subnet" "$port")"
+else
+    ui_info "$TITLE" "$(t host_ufw_skipped "$port")"
+fi
 
 # Autologin means PAM never sees a password, so anything that would normally be
 # unlocked with it stays locked. Better to say so now than to have a password
