@@ -4,10 +4,38 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+RAW_BASE=${MOONDECK_RAW_BASE:-https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main}
+BOOTSTRAP_DIR=${MOONDECK_BOOTSTRAP_DIR:-}
+trap 'if [[ -n $BOOTSTRAP_DIR ]]; then rm -rf "$BOOTSTRAP_DIR"; fi' EXIT
+
+# Fetch the pieces this script needs when it was run on its own, without the
+# rest of the repository next to it.
+bootstrap() {
+    command -v curl >/dev/null 2>&1 || {
+        printf 'curl is required to download the missing parts\n' >&2
+        exit 1
+    }
+    BOOTSTRAP_DIR=$(mktemp -d)
+    local part
+    for part in "$@"; do
+        mkdir -p "$BOOTSTRAP_DIR/$(dirname "$part")"
+        curl -fsSL "$RAW_BASE/$part" -o "$BOOTSTRAP_DIR/$part" || {
+            printf 'could not download %s\n' "$part" >&2
+            exit 1
+        }
+    done
+}
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd) || SCRIPT_DIR=""
+if [[ -r ${SCRIPT_DIR:-}/lib/i18n.sh ]]; then
+    ROOT_DIR=$SCRIPT_DIR
+else
+    bootstrap lib/i18n.sh lib/ui.sh lib/switchbot.sh src/moondeck-switchbot-wol.sh
+    ROOT_DIR=$BOOTSTRAP_DIR
+fi
 
 # shellcheck source=lib/i18n.sh
-source "$SCRIPT_DIR/lib/i18n.sh"
+source "$ROOT_DIR/lib/i18n.sh"
 
 for arg in "$@"; do
     case $arg in
@@ -24,15 +52,15 @@ for arg in "$@"; do
 done
 
 # shellcheck source=lib/ui.sh
-source "$SCRIPT_DIR/lib/ui.sh"
+source "$ROOT_DIR/lib/ui.sh"
 # shellcheck source=lib/switchbot.sh
-source "$SCRIPT_DIR/lib/switchbot.sh"
+source "$ROOT_DIR/lib/switchbot.sh"
 
 TITLE=$(t app_title)
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/moondeck-switchbot"
 CONFIG_FILE="$CONFIG_DIR/config"
 DEFAULT_TARGET="$HOME/moondeck-switchbot-wol.sh"
-SOURCE_SCRIPT="$SCRIPT_DIR/src/moondeck-switchbot-wol.sh"
+SOURCE_SCRIPT="$ROOT_DIR/src/moondeck-switchbot-wol.sh"
 
 fail() {
     ui_error "$TITLE" "$1"

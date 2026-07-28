@@ -5,15 +5,48 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+RAW_BASE=${MOONDECK_RAW_BASE:-https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main}
+BOOTSTRAP_DIR=${MOONDECK_BOOTSTRAP_DIR:-}
+trap 'if [[ -n $BOOTSTRAP_DIR ]]; then rm -rf "$BOOTSTRAP_DIR"; fi' EXIT
+
+# Works without the repository next to it, see install.sh.
+bootstrap() {
+    command -v curl >/dev/null 2>&1 || {
+        printf 'curl is required to download the missing parts\n' >&2
+        exit 1
+    }
+    BOOTSTRAP_DIR=$(mktemp -d)
+    local part
+    for part in "$@"; do
+        mkdir -p "$BOOTSTRAP_DIR/$(dirname "$part")"
+        curl -fsSL "$RAW_BASE/$part" -o "$BOOTSTRAP_DIR/$part" || {
+            printf 'could not download %s\n' "$part" >&2
+            exit 1
+        }
+    done
+}
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd) || SCRIPT_DIR=""
+if [[ -r ${SCRIPT_DIR:-}/../lib/i18n.sh ]]; then
+    ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
+else
+    bootstrap lib/i18n.sh lib/ui.sh \
+        host/install-host.sh \
+        host/moondeck-login-agent \
+        host/moondeck-login-agent.socket \
+        host/moondeck-login-agent@.service \
+        host/moondeck-login-disarm.service
+    ROOT_DIR=$BOOTSTRAP_DIR
+fi
+HOST_DIR=$ROOT_DIR/host
 
 # shellcheck source=../lib/i18n.sh
-source "$SCRIPT_DIR/../lib/i18n.sh"
+source "$ROOT_DIR/lib/i18n.sh"
 
 # Dialog windows and sudo do not mix, this one stays in the terminal.
 MSB_FORCE_CLI=1
 # shellcheck source=../lib/ui.sh
-source "$SCRIPT_DIR/../lib/ui.sh"
+source "$ROOT_DIR/lib/ui.sh"
 
 TITLE=$(t app_title)
 AGENT_TARGET=/usr/local/lib/moondeck-login-agent
@@ -31,7 +64,17 @@ abort() {
     exit 1
 }
 
-((EUID == 0)) || fail "$(t host_need_root)"
+if ((EUID != 0)); then
+    # sudo closes the file descriptor that a process substitution lives on, so
+    # a downloaded copy has to be handed over as a real path.
+    if [[ -n $BOOTSTRAP_DIR ]]; then
+        chmod 755 "$HOST_DIR/install-host.sh"
+        printf '%s\n' "$(t host_elevating)"
+        exec sudo MOONDECK_RAW_BASE="$RAW_BASE" MOONDECK_BOOTSTRAP_DIR="$BOOTSTRAP_DIR" \
+            bash "$HOST_DIR/install-host.sh" "$@"
+    fi
+    fail "$(t host_need_root)"
+fi
 
 remove_everything() {
     # undo a still armed autologin before the agent itself disappears
@@ -92,7 +135,7 @@ port=$(ui_input "$TITLE" "$(t host_ask_port)" "58471") || abort
 
 secret=$(openssl rand -hex 32)
 
-install -D -m 755 "$SCRIPT_DIR/moondeck-login-agent" "$AGENT_TARGET"
+install -D -m 755 "$HOST_DIR/moondeck-login-agent" "$AGENT_TARGET"
 install -d -m 755 "$CONFIG_DIR"
 printf '# written by install-host.sh\nUser=%s\nSession=%s\n' \
     "$target_user" "$target_session" >"$CONFIG_DIR/config"
@@ -100,11 +143,11 @@ chmod 644 "$CONFIG_DIR/config"
 install -m 600 /dev/null "$CONFIG_DIR/secret"
 printf '%s' "$secret" >"$CONFIG_DIR/secret"
 
-sed "s/@PORT@/$port/" "$SCRIPT_DIR/moondeck-login-agent.socket" \
+sed "s/@PORT@/$port/" "$HOST_DIR/moondeck-login-agent.socket" \
     >"$UNIT_DIR/moondeck-login-agent.socket"
-install -m 644 "$SCRIPT_DIR/moondeck-login-agent@.service" \
+install -m 644 "$HOST_DIR/moondeck-login-agent@.service" \
     "$UNIT_DIR/moondeck-login-agent@.service"
-install -m 644 "$SCRIPT_DIR/moondeck-login-disarm.service" \
+install -m 644 "$HOST_DIR/moondeck-login-disarm.service" \
     "$UNIT_DIR/moondeck-login-disarm.service"
 
 systemctl daemon-reload

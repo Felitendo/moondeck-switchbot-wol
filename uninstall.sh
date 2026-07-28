@@ -4,10 +4,37 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+RAW_BASE=${MOONDECK_RAW_BASE:-https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main}
+BOOTSTRAP_DIR=${MOONDECK_BOOTSTRAP_DIR:-}
+trap 'if [[ -n $BOOTSTRAP_DIR ]]; then rm -rf "$BOOTSTRAP_DIR"; fi' EXIT
+
+# Works without the repository next to it, see install.sh.
+bootstrap() {
+    command -v curl >/dev/null 2>&1 || {
+        printf 'curl is required to download the missing parts\n' >&2
+        exit 1
+    }
+    BOOTSTRAP_DIR=$(mktemp -d)
+    local part
+    for part in "$@"; do
+        mkdir -p "$BOOTSTRAP_DIR/$(dirname "$part")"
+        curl -fsSL "$RAW_BASE/$part" -o "$BOOTSTRAP_DIR/$part" || {
+            printf 'could not download %s\n' "$part" >&2
+            exit 1
+        }
+    done
+}
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd) || SCRIPT_DIR=""
+if [[ -r ${SCRIPT_DIR:-}/lib/i18n.sh ]]; then
+    ROOT_DIR=$SCRIPT_DIR
+else
+    bootstrap lib/i18n.sh lib/ui.sh
+    ROOT_DIR=$BOOTSTRAP_DIR
+fi
 
 # shellcheck source=lib/i18n.sh
-source "$SCRIPT_DIR/lib/i18n.sh"
+source "$ROOT_DIR/lib/i18n.sh"
 
 for arg in "$@"; do
     case $arg in
@@ -17,7 +44,7 @@ for arg in "$@"; do
 done
 
 # shellcheck source=lib/ui.sh
-source "$SCRIPT_DIR/lib/ui.sh"
+source "$ROOT_DIR/lib/ui.sh"
 
 TITLE=$(t app_title)
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/moondeck-switchbot"
