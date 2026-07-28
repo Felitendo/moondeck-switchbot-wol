@@ -48,7 +48,7 @@ bootstrap() {
     done
 }
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd) || SCRIPT_DIR=""
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-}")" 2>/dev/null && pwd) || SCRIPT_DIR=""
 if [[ -r ${SCRIPT_DIR:-}/lib/i18n.sh ]]; then
     ROOT_DIR=$SCRIPT_DIR
 else
