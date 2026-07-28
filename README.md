@@ -143,10 +143,22 @@ application that wants a stored secret opens a password dialog on the desktop â€
 mid-stream, if you are unlucky. This is not specific to this project, it is what
 automatic login does everywhere.
 
-The only way out is a keyring without a password (seahorse for gnome-keyring,
-the KWallet settings for KWallet), which leaves those secrets unencrypted on
-disk. The host installer looks for such a keyring and says so at the end rather
-than letting the dialog surprise you later.
+There are two ways out, and the narrow one is usually the better trade:
+
+- **Take the offending application out of the keyring.** Electron apps accept
+  `--password-store=basic` and then keep their secrets in their own config
+  directory, so the keyring keeps its password and stays encrypted for
+  everything else. What you give up is the protection on that one
+  application's token.
+- **Remove the keyring password.** In Seahorse, right-click the keyring,
+  *Change Password*, leave the new one empty; KWallet has the same option in
+  its settings. This fixes it for every application at once, but the contents
+  then sit unencrypted in `~/.local/share/keyrings`. That only matters to
+  someone who gets at the disk or a backup â€” on a machine without disk
+  encryption, they would have everything else anyway.
+
+The host installer looks for such a keyring and spells this out at the end,
+rather than letting the dialog surprise you later.
 
 ## Configuration
 
