@@ -100,48 +100,99 @@ done
 [[ -r $SOURCE_SCRIPT ]] || fail "$(t write_failed "$SOURCE_SCRIPT")"
 
 ui_info "$TITLE" "$(t welcome)"
-ui_info "$TITLE" "$(t creds_intro "$CONFIG_FILE")"
 
-while true; do
-    token=$(ui_password "$TITLE" "$(t ask_token)") || abort
-    [[ -n $token ]] || fail "$(t input_empty)"
-    secret=$(ui_password "$TITLE" "$(t ask_secret)") || abort
-    [[ -n $secret ]] || fail "$(t input_empty)"
+# The host installer can put the whole setup into one line, so anything the
+# token already carries must not be asked again here.
+decode_token() {
+    printf '%s' "$1" | tr -d '[:space:]' | base64 -d 2>/dev/null | python3 -c '
+import json
+import sys
 
-    response_file=$(mktemp)
-    if ! ui_progress_run "$(t fetching)" "$response_file" sb_curl "$token" "$secret" "/devices"; then
+raw = sys.stdin.read()
+if raw.startswith("1|"):
+    parts = raw.split("|")
+    data = dict(zip(("host", "port", "secret"), parts[1:4]))
+else:
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        sys.exit(1)
+    if int(data.get("v", 0)) != 2:
+        sys.exit(1)
+if not data.get("secret"):
+    sys.exit(1)
+for key in ("host", "port", "secret", "sbToken", "sbSecret", "device", "command"):
+    if data.get(key):
+        print("%s\t%s" % (key, data[key]))
+'
+}
+
+declare -A PAIRED=()
+if ui_yesno "$TITLE" "$(t token_ask)"; then
+    while true; do
+        pairing_token=$(ui_input "$TITLE" "$(t trigger_token)" "") || abort
+        [[ -n $pairing_token ]] || fail "$(t input_empty)"
+        PAIRED=()
+        while IFS=$'\t' read -r token_key token_value; do
+            PAIRED[$token_key]=$token_value
+        done < <(decode_token "$pairing_token")
+        ((${#PAIRED[@]} > 0)) && break
+        ui_error "$TITLE" "$(t trigger_bad_token)"
+    done
+fi
+
+trigger_secret=${PAIRED[secret]:-}
+trigger_port=${PAIRED[port]:-58471}
+trigger_host=${PAIRED[host]:-}
+token=${PAIRED[sbToken]:-}
+secret=${PAIRED[sbSecret]:-}
+selected_device=${PAIRED[device]:-}
+selected_command=${PAIRED[command]:-press}
+
+if [[ -z $token || -z $secret || -z $selected_device ]]; then
+    ui_info "$TITLE" "$(t creds_intro "$CONFIG_FILE")"
+
+    while true; do
+        token=$(ui_password "$TITLE" "$(t ask_token)") || abort
+        [[ -n $token ]] || fail "$(t input_empty)"
+        secret=$(ui_password "$TITLE" "$(t ask_secret)") || abort
+        [[ -n $secret ]] || fail "$(t input_empty)"
+
+        response_file=$(mktemp)
+        if ! ui_progress_run "$(t fetching)" "$response_file" sb_curl "$token" "$secret" "/devices"; then
+            rm -f "$response_file"
+            ui_error "$TITLE" "$(t api_unreachable)"
+            continue
+        fi
+        response=$(cat "$response_file")
         rm -f "$response_file"
-        ui_error "$TITLE" "$(t api_unreachable)"
-        continue
-    fi
-    response=$(cat "$response_file")
-    rm -f "$response_file"
 
-    mapfile -t lines < <(printf '%s' "$response" | sb_parse_devices)
-    if [[ ${lines[0]:-} == ERR* ]]; then
-        IFS=$'\t' read -r _ status_code message <<<"${lines[0]}"
-        ui_error "$TITLE" "$(t api_error "$status_code" "$message")"
-        continue
-    fi
+        mapfile -t lines < <(printf '%s' "$response" | sb_parse_devices)
+        if [[ ${lines[0]:-} == ERR* ]]; then
+            IFS=$'\t' read -r _ status_code message <<<"${lines[0]}"
+            ui_error "$TITLE" "$(t api_error "$status_code" "$message")"
+            continue
+        fi
 
-    devices=("${lines[@]:1}")
-    ((${#devices[@]} > 0)) || fail "$(t no_devices)"
-    break
-done
+        devices=("${lines[@]:1}")
+        ((${#devices[@]} > 0)) || fail "$(t no_devices)"
+        break
+    done
 
-choices=()
-for line in "${devices[@]}"; do
-    IFS=$'\t' read -r device_id device_name device_type <<<"$line"
-    choices+=("$device_id" "$device_name ($device_type)")
-done
+    choices=()
+    for line in "${devices[@]}"; do
+        IFS=$'\t' read -r device_id device_name device_type <<<"$line"
+        choices+=("$device_id" "$device_name ($device_type)")
+    done
 
-selected_device=$(ui_choose "$TITLE" "$(t choose_device)" "${choices[@]}") || abort
-[[ -n $selected_device ]] || abort
+    selected_device=$(ui_choose "$TITLE" "$(t choose_device)" "${choices[@]}") || abort
+    [[ -n $selected_device ]] || abort
 
-selected_command=$(ui_choose "$TITLE" "$(t ask_mode)" \
-    press "$(t mode_press)" \
-    turnOn "$(t mode_switch)") || abort
-[[ -n $selected_command ]] || abort
+    selected_command=$(ui_choose "$TITLE" "$(t ask_mode)" \
+        press "$(t mode_press)" \
+        turnOn "$(t mode_switch)") || abort
+    [[ -n $selected_command ]] || abort
+fi
 
 target=$(ui_input "$TITLE" "$(t ask_path)" "$DEFAULT_TARGET") || abort
 [[ -n $target ]] || abort
@@ -149,24 +200,6 @@ target=${target/#\~/$HOME}
 
 if [[ -e $target ]]; then
     ui_yesno "$TITLE" "$(t path_exists "$target")" || abort
-fi
-
-trigger_secret=""
-trigger_port=""
-trigger_host=""
-if ui_yesno "$TITLE" "$(t trigger_ask)"; then
-    while true; do
-        pairing_token=$(ui_input "$TITLE" "$(t trigger_token)" "") || abort
-        [[ -n $pairing_token ]] || fail "$(t input_empty)"
-
-        decoded=$(printf '%s' "$pairing_token" | tr -d '[:space:]' | base64 -d 2>/dev/null) || decoded=""
-        IFS='|' read -r token_version trigger_host trigger_port trigger_secret <<<"$decoded"
-        if [[ $token_version == 1 && -n $trigger_secret && $trigger_port =~ ^[0-9]+$ ]]; then
-            break
-        fi
-        trigger_secret=""
-        ui_error "$TITLE" "$(t trigger_bad_token)"
-    done
 fi
 
 install -D -m 600 /dev/null "$CONFIG_FILE" 2>/dev/null || fail "$(t write_failed "$CONFIG_FILE")"

@@ -52,7 +52,7 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-}")" 2>/dev/null && pwd) || 
 if [[ -r ${SCRIPT_DIR:-}/../lib/i18n.sh ]]; then
     ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 else
-    bootstrap lib/i18n.sh lib/ui.sh \
+    bootstrap lib/i18n.sh lib/ui.sh lib/switchbot.sh \
         host/install-host.sh \
         host/moondeck-login-agent \
         host/moondeck-login-agent.socket \
@@ -69,6 +69,8 @@ source "$ROOT_DIR/lib/i18n.sh"
 MSB_FORCE_CLI=1
 # shellcheck source=../lib/ui.sh
 source "$ROOT_DIR/lib/ui.sh"
+# shellcheck source=../lib/switchbot.sh
+source "$ROOT_DIR/lib/switchbot.sh"
 
 TITLE=$(t app_title)
 AGENT_TARGET=/usr/local/lib/moondeck-login-agent
@@ -123,12 +125,36 @@ local_address() {
         awk '$2 !~ /^(docker|virbr|br-)/ {split($4, a, "/"); print a[1]; exit}'
 }
 
-# Everything the Deck needs in a single string, so nobody has to retype three
-# fields on a handheld. The address in it is only a fallback, see the wake-up
-# script for the order the addresses are tried in.
+# Everything the Deck needs in a single string, so nothing has to be retyped on
+# a handheld. Values travel in the environment rather than in the argument
+# list, which would show up in the process list. The address is only a
+# fallback, see the wake-up script for the order the addresses are tried in.
 pairing_token() {
-    local secret=$1 port=$2
-    printf '1|%s|%s|%s' "$(local_address)" "$port" "$secret" | base64 -w0
+    MSB_T_HOST=$(local_address) \
+        MSB_T_PORT=$1 \
+        MSB_T_SECRET=$2 \
+        MSB_T_SBTOKEN=${3:-} \
+        MSB_T_SBSECRET=${4:-} \
+        MSB_T_DEVICE=${5:-} \
+        MSB_T_COMMAND=${6:-} \
+        python3 -c '
+import base64
+import json
+import os
+
+fields = {
+    "host": "MSB_T_HOST", "port": "MSB_T_PORT", "secret": "MSB_T_SECRET",
+    "sbToken": "MSB_T_SBTOKEN", "sbSecret": "MSB_T_SBSECRET",
+    "device": "MSB_T_DEVICE", "command": "MSB_T_COMMAND",
+}
+data = {"v": 2}
+for key, variable in fields.items():
+    value = os.environ.get(variable, "")
+    if value:
+        data[key] = value
+raw = json.dumps(data, separators=(",", ":")).encode("utf-8")
+print(base64.b64encode(raw).decode("ascii"))
+'
 }
 
 if [[ ${1:-} == --uninstall ]]; then
@@ -142,7 +168,7 @@ if [[ ${1:-} == --token ]]; then
     installed_port=$(sed -n 's/^ListenStream=//p' \
         "$UNIT_DIR/moondeck-login-agent.socket" 2>/dev/null | tail -1)
     ui_info "$TITLE" "$(t host_token \
-        "$(pairing_token "$(cat "$CONFIG_DIR/secret")" "${installed_port:-58471}")")"
+        "$(pairing_token "${installed_port:-58471}" "$(cat "$CONFIG_DIR/secret")")")"
     exit 0
 fi
 
@@ -184,6 +210,48 @@ if ui_yesno "$TITLE" "$(t host_ntfy_ask)"; then
     ntfy_topic=$(ui_input "$TITLE" "$(t host_ntfy_topic)" "") || abort
     [[ -n $ntfy_topic ]] || fail "$(t input_empty)"
     ntfy_server=$(ui_input "$TITLE" "$(t host_ntfy_server)" "https://ntfy.sh") || abort
+fi
+
+sb_token=""
+sb_secret=""
+sb_device=""
+sb_command=""
+if ui_yesno "$TITLE" "$(t host_sb_ask)"; then
+    ui_info "$TITLE" "$(t host_creds_intro)"
+    while true; do
+        sb_token=$(ui_password "$TITLE" "$(t ask_token)") || abort
+        [[ -n $sb_token ]] || fail "$(t input_empty)"
+        sb_secret=$(ui_password "$TITLE" "$(t ask_secret)") || abort
+        [[ -n $sb_secret ]] || fail "$(t input_empty)"
+
+        devices_file=$(mktemp)
+        if ! ui_progress_run "$(t fetching)" "$devices_file" sb_curl "$sb_token" "$sb_secret" "/devices"; then
+            rm -f "$devices_file"
+            ui_error "$TITLE" "$(t api_unreachable)"
+            continue
+        fi
+        mapfile -t device_lines < <(sb_parse_devices <"$devices_file")
+        rm -f "$devices_file"
+
+        if [[ ${device_lines[0]:-} == ERR* ]]; then
+            IFS=$'\t' read -r _ status_code message <<<"${device_lines[0]}"
+            ui_error "$TITLE" "$(t api_error "$status_code" "$message")"
+            continue
+        fi
+        ((${#device_lines[@]} > 1)) || fail "$(t no_devices)"
+        break
+    done
+
+    device_choices=()
+    for line in "${device_lines[@]:1}"; do
+        IFS=$'\t' read -r device_id device_name device_type <<<"$line"
+        device_choices+=("$device_id" "$device_name ($device_type)")
+    done
+    sb_device=$(ui_choose "$TITLE" "$(t choose_device)" "${device_choices[@]}") || abort
+    [[ -n $sb_device ]] || abort
+    sb_command=$(ui_choose "$TITLE" "$(t ask_mode)" \
+        press "$(t mode_press)" turnOn "$(t mode_switch)") || abort
+    [[ -n $sb_command ]] || abort
 fi
 
 # Re-running this to change a setting must not invalidate the token that is
@@ -258,4 +326,5 @@ if compgen -G "$user_home/.local/share/kwalletd/*.kwl" >/dev/null 2>&1; then
 fi
 [[ -n $locked_stores ]] && ui_info "$TITLE" "$(t host_keyring_warning "$locked_stores")"
 
-ui_info "$TITLE" "$(t host_done "$(pairing_token "$secret" "$port")")"
+ui_info "$TITLE" "$(t host_done "$(pairing_token "$port" "$secret" \
+    "$sb_token" "$sb_secret" "$sb_device" "$sb_command")")"

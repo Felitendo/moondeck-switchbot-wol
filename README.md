@@ -28,14 +28,18 @@ Piping into bash normally breaks a wizard, because standard input is then the sc
 
 The wizard uses `kdialog` or `zenity` when a graphical session is available. Add `--cli` for plain terminal prompts.
 
-It will:
+First it asks whether you have a pairing token from the host — see below, it is
+worth it, because everything in that token is one thing less to type on a
+handheld. Without one it asks for the lot:
 
 1. Point you at **Profile → Preferences → tap "App Version" 10 times → Developer Options** in the SwitchBot app, where the token and the client secret live
 2. Fetch your devices and let you pick one
 3. Ask whether the Bot runs in press mode or switch mode
-4. Write the credentials to `~/.config/moondeck-switchbot/config` (mode 600)
-5. Install the wake-up script, by default to `~/moondeck-switchbot-wol.sh`
-6. Optionally fire a test command so you can hear the Bot click
+
+Either way it then writes the credentials to `~/.config/moondeck-switchbot/config`
+(mode 600), installs the wake-up script — by default to
+`~/moondeck-switchbot-wol.sh` — and offers to fire a test command so you can hear
+the Bot click.
 
 ## Set up MoonDeck
 
@@ -80,13 +84,20 @@ Run it without sudo in front, it asks for root itself. `sudo curl … | sudo bas
 
 It asks which user and session to log in, generates the secret, installs a
 socket-activated systemd service and, if `ufw` is active, opens the port for
-your local subnet only. At the end it prints a single pairing token that
-carries the port, the secret and the host's current address — re-run the
-installer on the Deck, answer yes when it offers the login trigger and paste
-that one line, instead of typing three fields on a handheld keyboard.
+your local subnet only. It also offers to take the SwitchBot side off your
+hands: enter the API credentials here, pick the device from the list it
+fetches, and all of it goes into the pairing token as well. Nothing of that is
+stored on the host — it only travels inside the token.
+
+At the end it prints that token: one line carrying the port, the trigger
+secret, the host address and, if you said yes, the SwitchBot setup. On the Deck
+you then answer yes to the very first question, paste it, and the wizard skips
+everything the token already knows. Typing an API token on a handheld keyboard
+is exactly the kind of thing this avoids.
 
 An existing installation can hand out its token again at any time, without
-changing anything:
+changing anything. That one carries the trigger only, since the SwitchBot
+credentials are deliberately not kept here:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh | bash -s -- --token
