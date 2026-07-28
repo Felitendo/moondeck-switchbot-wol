@@ -186,9 +186,16 @@ if ui_yesno "$TITLE" "$(t host_ntfy_ask)"; then
     ntfy_server=$(ui_input "$TITLE" "$(t host_ntfy_server)" "https://ntfy.sh") || abort
 fi
 
-# 128 bit is plenty for an HMAC key and keeps the pairing token short enough
-# to be pasted comfortably on a handheld.
-secret=$(openssl rand -hex 16)
+# Re-running this to change a setting must not invalidate the token that is
+# already on the Deck, so an existing secret is kept.
+if [[ -r $CONFIG_DIR/secret ]]; then
+    secret=$(cat "$CONFIG_DIR/secret")
+    printf '%s\n' "$(t host_secret_kept)"
+else
+    # 128 bit is plenty for an HMAC key and keeps the pairing token short
+    # enough to be pasted comfortably on a handheld.
+    secret=$(openssl rand -hex 16)
+fi
 
 install -D -m 755 "$HOST_DIR/moondeck-login-agent" "$AGENT_TARGET"
 install -d -m 755 "$CONFIG_DIR"
