@@ -84,6 +84,67 @@ ui_password() {
     esac
 }
 
+msb_qdbus() {
+    local candidate
+    for candidate in qdbus qdbus6 qdbus-qt6 qdbus-qt5; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# ui_progress_run <text> <output file> <command> [arguments...]
+#
+# Runs the command behind a busy indicator, writes its stdout to the given file
+# and returns its exit code. Without this the window is simply gone for a few
+# seconds while the API is queried, which looks like a crash.
+ui_progress_run() {
+    local text=$1 output=$2
+    shift 2
+    local status_file worker qdbus_binary reference exit_code
+    status_file=$(mktemp)
+
+    case $MSB_UI in
+        zenity)
+            {
+                "$@" >"$output"
+                printf '%s' "$?" >"$status_file"
+            } &
+            worker=$!
+            # zenity closes as soon as its stdin reaches end of file, which
+            # happens when the process substitution notices the worker is gone.
+            zenity --progress --pulsate --auto-close --no-cancel \
+                --title="$(t app_title)" --text="$text" --width=420 \
+                < <(while kill -0 "$worker" 2>/dev/null; do sleep 0.2; done) \
+                >/dev/null 2>&1
+            wait "$worker" || true
+            ;;
+        kdialog)
+            reference=""
+            if qdbus_binary=$(msb_qdbus); then
+                reference=$(kdialog --title "$(t app_title)" --progressbar "$text" 0 2>/dev/null) || reference=""
+            fi
+            "$@" >"$output"
+            printf '%s' "$?" >"$status_file"
+            if [[ -n $reference ]]; then
+                # shellcheck disable=SC2086
+                $qdbus_binary $reference close >/dev/null 2>&1 || true
+            fi
+            ;;
+        *)
+            printf '%s\n' "$text"
+            "$@" >"$output"
+            printf '%s' "$?" >"$status_file"
+            ;;
+    esac
+
+    exit_code=$(cat "$status_file" 2>/dev/null)
+    rm -f "$status_file"
+    return "${exit_code:-1}"
+}
+
 # ui_choose <title> <label> <tag> <text> [<tag> <text> ...]
 ui_choose() {
     local title=$1 label=$2

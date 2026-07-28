@@ -58,11 +58,14 @@ while true; do
     secret=$(ui_password "$TITLE" "$(t ask_secret)") || abort
     [[ -n $secret ]] || fail "$(t input_empty)"
 
-    printf '%s\n' "$(t fetching)"
-    if ! response=$(sb_curl "$token" "$secret" "/devices"); then
+    response_file=$(mktemp)
+    if ! ui_progress_run "$(t fetching)" "$response_file" sb_curl "$token" "$secret" "/devices"; then
+        rm -f "$response_file"
         ui_error "$TITLE" "$(t api_unreachable)"
         continue
     fi
+    response=$(cat "$response_file")
+    rm -f "$response_file"
 
     mapfile -t lines < <(printf '%s' "$response" | sb_parse_devices)
     if [[ ${lines[0]:-} == ERR* ]]; then
@@ -117,12 +120,20 @@ mkdir -p "$(dirname "$target")"
 sed "s|@CONFIG_PATH@|$CONFIG_FILE|" "$SOURCE_SCRIPT" >"$target" || fail "$(t write_failed "$target")"
 chmod 755 "$target"
 
+# The script logs to stdout and curl complains on stderr, the dialog should
+# show both.
+run_wake_test() {
+    "$target" --test 2>&1
+}
+
 if ui_yesno "$TITLE" "$(t test_ask)"; then
-    if output=$("$target" --test 2>&1); then
+    test_output=$(mktemp)
+    if ui_progress_run "$(t testing)" "$test_output" run_wake_test; then
         ui_info "$TITLE" "$(t test_ok)"
     else
-        ui_error "$TITLE" "$(t test_failed "$output")"
+        ui_error "$TITLE" "$(t test_failed "$(cat "$test_output")")"
     fi
+    rm -f "$test_output"
 fi
 
 ui_info "$TITLE" "$(t done "$target")"
