@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Sets up the one-shot login trigger on the host PC. Run this with sudo on the
-# machine that gets woken up, not on the Steam Deck.
+# Sets up the one-shot login trigger on the host PC. Run this on the machine
+# that gets woken up, without sudo in front: it asks all its questions as you,
+# with dialogs, and only the installation itself goes through sudo.
 
 set -euo pipefail
 
@@ -61,12 +62,23 @@ else
     ROOT_DIR=$BOOTSTRAP_DIR
 fi
 HOST_DIR=$ROOT_DIR/host
+SELF_PATH=$HOST_DIR/install-host.sh
 
 # shellcheck source=../lib/i18n.sh
 source "$ROOT_DIR/lib/i18n.sh"
 
-# Dialog windows and sudo do not mix, this one stays in the terminal.
-MSB_FORCE_CLI=1
+MODE=install
+for arg in "$@"; do
+    case $arg in
+        --cli) MSB_FORCE_CLI=1 ;;
+        --uninstall | --token | --apply | --apply-uninstall) MODE=${arg#--} ;;
+        *) ;;
+    esac
+done
+
+# The privileged half runs under sudo and has no session to draw dialogs on.
+[[ $MODE == apply* ]] && MSB_FORCE_CLI=1
+
 # shellcheck source=../lib/ui.sh
 source "$ROOT_DIR/lib/ui.sh"
 # shellcheck source=../lib/switchbot.sh
@@ -88,17 +100,12 @@ abort() {
     exit 1
 }
 
-if ((EUID != 0)); then
-    # sudo closes the file descriptor that a process substitution lives on, so
-    # a downloaded copy has to be handed over as a real path.
-    if [[ -n $BOOTSTRAP_DIR ]]; then
-        chmod 755 "$HOST_DIR/install-host.sh"
-        printf '%s\n' "$(t host_elevating)"
-        exec sudo MOONDECK_RAW_BASE="$RAW_BASE" MOONDECK_BOOTSTRAP_DIR="$BOOTSTRAP_DIR" \
-            bash "$HOST_DIR/install-host.sh" "$@"
-    fi
-    fail "$(t host_need_root)"
-fi
+# --- the privileged half -----------------------------------------------------
+#
+# Only ever reached through sudo. What it needs arrives in a file, so no secret
+# has to travel through the argument list where the process list would show it,
+# and the only thing it writes to standard output is the secret the trigger
+# ended up with.
 
 remove_everything() {
     # undo a still armed autologin before the agent itself disappears
@@ -117,7 +124,83 @@ remove_everything() {
         done < <(ufw status numbered 2>/dev/null | grep -F "$UFW_COMMENT" |
             sed -n 's/^\[ *\([0-9]\+\)\].*/\1/p' | sort -rn)
     fi
-    ui_info "$TITLE" "$(t host_uninstall_done)"
+}
+
+apply_installation() {
+    local answers=$1
+    declare -A A=()
+    local key value
+    while IFS=$'\t' read -r key value; do
+        [[ -n $key ]] && A[$key]=$value
+    done <"$answers"
+
+    # Re-running to change a setting must not invalidate a token that is
+    # already on a Deck, so an existing secret wins over the fresh one.
+    local secret=${A[Secret]}
+    if [[ -r $CONFIG_DIR/secret ]]; then
+        secret=$(cat "$CONFIG_DIR/secret")
+        printf '%s\n' "$(t host_secret_kept)" >&2
+    fi
+
+    install -D -m 755 "$HOST_DIR/moondeck-login-agent" "$AGENT_TARGET"
+    install -d -m 755 "$CONFIG_DIR"
+    {
+        printf '# written by install-host.sh\n'
+        printf 'User=%s\n' "${A[User]}"
+        printf 'Session=%s\n' "${A[Session]}"
+        if [[ -n ${A[NtfyTopic]:-} ]]; then
+            printf 'NtfyServer=%s\n' "${A[NtfyServer]}"
+            printf 'NtfyTopic=%s\n' "${A[NtfyTopic]}"
+            printf 'NtfyTitle=%s\n' "${A[NtfyTitle]}"
+            printf 'NtfyMessage=%s\n' "${A[NtfyMessage]}"
+            printf 'NtfyMessageNoStream=%s\n' "${A[NtfyMessageNoStream]}"
+            printf 'NtfyMessageFailed=%s\n' "${A[NtfyMessageFailed]}"
+            printf '# Port that has to answer before the ready push goes out, 0 skips the wait.\n'
+            printf 'ReadyPort=47989\n'
+        fi
+    } >"$CONFIG_DIR/config"
+    chmod 644 "$CONFIG_DIR/config"
+    install -m 600 /dev/null "$CONFIG_DIR/secret"
+    printf '%s' "$secret" >"$CONFIG_DIR/secret"
+
+    sed "s/@PORT@/${A[Port]}/" "$HOST_DIR/moondeck-login-agent.socket" \
+        >"$UNIT_DIR/moondeck-login-agent.socket"
+    install -m 644 "$HOST_DIR/moondeck-login-agent@.service" \
+        "$UNIT_DIR/moondeck-login-agent@.service"
+    install -m 644 "$HOST_DIR/moondeck-login-disarm.service" \
+        "$UNIT_DIR/moondeck-login-disarm.service"
+
+    systemctl daemon-reload
+    systemctl enable --now moondeck-login-agent.socket >/dev/null
+    systemctl enable moondeck-login-disarm.service >/dev/null
+
+    if [[ -n ${A[Subnet]:-} ]] && command -v ufw >/dev/null 2>&1 &&
+        ufw status 2>/dev/null | grep -qi '^Status: active'; then
+        ufw allow from "${A[Subnet]}" to any port "${A[Port]}" proto tcp \
+            comment "$UFW_COMMENT" >/dev/null
+    fi
+
+    printf '%s\n' "$secret"
+}
+
+case $MODE in
+    apply)
+        ((EUID == 0)) || fail "$(t host_need_root)"
+        apply_installation "$2"
+        exit 0
+        ;;
+    apply-uninstall)
+        ((EUID == 0)) || fail "$(t host_need_root)"
+        remove_everything
+        exit 0
+        ;;
+esac
+
+# --- the half that talks to you ----------------------------------------------
+
+run_privileged() {
+    printf '%s\n' "$(t host_sudo_hint)" >&2
+    sudo MOONDECK_SWITCHBOT_LANG="$MSB_LANG" bash "$SELF_PATH" "$@"
 }
 
 local_address() {
@@ -157,28 +240,29 @@ print(base64.b64encode(raw).decode("ascii"))
 '
 }
 
-if [[ ${1:-} == --uninstall ]]; then
-    remove_everything
+if [[ $MODE == uninstall ]]; then
+    run_privileged --apply-uninstall || fail "$(t host_privileged_failed)"
+    ui_info "$TITLE" "$(t host_uninstall_done)"
     exit 0
 fi
 
-# Hand out the token again without touching a working installation.
-if [[ ${1:-} == --token ]]; then
-    [[ -r $CONFIG_DIR/secret ]] || fail "$(t host_not_installed)"
-    installed_port=$(sed -n 's/^ListenStream=//p' \
+if [[ $MODE == token ]]; then
+    printf '%s\n' "$(t host_sudo_hint)" >&2
+    secret=$(sudo cat "$CONFIG_DIR/secret" 2>/dev/null) || fail "$(t host_not_installed)"
+    [[ -n $secret ]] || fail "$(t host_not_installed)"
+    port=$(sudo sed -n 's/^ListenStream=//p' \
         "$UNIT_DIR/moondeck-login-agent.socket" 2>/dev/null | tail -1)
-    ui_info "$TITLE" "$(t host_token \
-        "$(pairing_token "${installed_port:-58471}" "$(cat "$CONFIG_DIR/secret")")")"
+    ui_info "$TITLE" "$(t host_token "$(pairing_token "${port:-58471}" "$secret")")"
     exit 0
 fi
 
-for dependency in python3 systemctl openssl loginctl; do
+for dependency in python3 systemctl openssl loginctl sudo; do
     command -v "$dependency" >/dev/null 2>&1 || fail "$(t dep_missing "$dependency")"
 done
 
 ui_info "$TITLE" "$(t host_welcome)"
 
-target_user=$(ui_input "$TITLE" "$(t host_ask_user)" "${SUDO_USER:-}") || abort
+target_user=$(ui_input "$TITLE" "$(t host_ask_user)" "${SUDO_USER:-${USER:-}}") || abort
 [[ -n $target_user ]] || abort
 id -u "$target_user" >/dev/null 2>&1 || fail "$(t host_unknown_user "$target_user")"
 
@@ -254,68 +338,47 @@ if ui_yesno "$TITLE" "$(t host_sb_ask)"; then
     [[ -n $sb_command ]] || abort
 fi
 
-# Re-running this to change a setting must not invalidate the token that is
-# already on the Deck, so an existing secret is kept.
-if [[ -r $CONFIG_DIR/secret ]]; then
-    secret=$(cat "$CONFIG_DIR/secret")
-    printf '%s\n' "$(t host_secret_kept)"
-else
-    # 128 bit is plenty for an HMAC key and keeps the pairing token short
-    # enough to be pasted comfortably on a handheld.
-    secret=$(openssl rand -hex 16)
-fi
-
-install -D -m 755 "$HOST_DIR/moondeck-login-agent" "$AGENT_TARGET"
-install -d -m 755 "$CONFIG_DIR"
-{
-    printf '# written by install-host.sh\n'
-    printf 'User=%s\n' "$target_user"
-    printf 'Session=%s\n' "$target_session"
-    if [[ -n $ntfy_topic ]]; then
-        printf 'NtfyServer=%s\n' "${ntfy_server:-https://ntfy.sh}"
-        printf 'NtfyTopic=%s\n' "$ntfy_topic"
-        printf 'NtfyTitle=%s\n' "$(t host_ntfy_title)"
-        printf 'NtfyMessage=%s\n' "$(t host_ntfy_ready "$(uname -n)")"
-        printf 'NtfyMessageNoStream=%s\n' "$(t host_ntfy_nostream "$(uname -n)")"
-        printf 'NtfyMessageFailed=%s\n' "$(t host_ntfy_failed "$(uname -n)")"
-        printf '# Port that has to answer before the ready push goes out, 0 skips the wait.\n'
-        printf 'ReadyPort=47989\n'
-    fi
-} >"$CONFIG_DIR/config"
-chmod 644 "$CONFIG_DIR/config"
-install -m 600 /dev/null "$CONFIG_DIR/secret"
-printf '%s' "$secret" >"$CONFIG_DIR/secret"
-
-sed "s/@PORT@/$port/" "$HOST_DIR/moondeck-login-agent.socket" \
-    >"$UNIT_DIR/moondeck-login-agent.socket"
-install -m 644 "$HOST_DIR/moondeck-login-agent@.service" \
-    "$UNIT_DIR/moondeck-login-agent@.service"
-install -m 644 "$HOST_DIR/moondeck-login-disarm.service" \
-    "$UNIT_DIR/moondeck-login-disarm.service"
-
-systemctl daemon-reload
-systemctl enable --now moondeck-login-agent.socket >/dev/null
-systemctl enable moondeck-login-disarm.service >/dev/null
+# 128 bit is plenty for an HMAC key and keeps the pairing token short enough
+# to be pasted comfortably on a handheld.
+generated_secret=$(openssl rand -hex 16)
 
 subnet=""
-if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -qi '^Status: active'; then
-    address=$(ip -4 -o addr show scope global 2>/dev/null |
-        awk '$2 !~ /^(docker|virbr|br-)/ {print $4; exit}')
-    if [[ -n $address ]]; then
-        subnet=$(python3 -c 'import ipaddress,sys; print(ipaddress.ip_network(sys.argv[1], strict=False))' "$address")
-        ufw allow from "$subnet" to any port "$port" proto tcp comment "$UFW_COMMENT" >/dev/null
+address=$(ip -4 -o addr show scope global 2>/dev/null |
+    awk '$2 !~ /^(docker|virbr|br-)/ {print $4; exit}')
+if [[ -n $address ]]; then
+    subnet=$(python3 -c 'import ipaddress,sys; print(ipaddress.ip_network(sys.argv[1], strict=False))' "$address")
+fi
+
+answers=$(mktemp)
+chmod 600 "$answers"
+{
+    printf 'User\t%s\n' "$target_user"
+    printf 'Session\t%s\n' "$target_session"
+    printf 'Port\t%s\n' "$port"
+    printf 'Secret\t%s\n' "$generated_secret"
+    printf 'Subnet\t%s\n' "$subnet"
+    if [[ -n $ntfy_topic ]]; then
+        printf 'NtfyServer\t%s\n' "${ntfy_server:-https://ntfy.sh}"
+        printf 'NtfyTopic\t%s\n' "$ntfy_topic"
+        printf 'NtfyTitle\t%s\n' "$(t host_ntfy_title)"
+        printf 'NtfyMessage\t%s\n' "$(t host_ntfy_ready "$(uname -n)")"
+        printf 'NtfyMessageNoStream\t%s\n' "$(t host_ntfy_nostream "$(uname -n)")"
+        printf 'NtfyMessageFailed\t%s\n' "$(t host_ntfy_failed "$(uname -n)")"
     fi
-fi
+} >"$answers"
 
-if [[ -n $subnet ]]; then
-    ui_info "$TITLE" "$(t host_ufw_added "$subnet" "$port")"
-else
-    ui_info "$TITLE" "$(t host_ufw_skipped "$port")"
-fi
+effective_secret=$(run_privileged --apply "$answers") || {
+    rm -f "$answers"
+    fail "$(t host_privileged_failed)"
+}
+rm -f "$answers"
+[[ -n $effective_secret ]] || fail "$(t host_privileged_failed)"
 
-# Autologin means PAM never sees a password, so anything that would normally
-# be unlocked with it stays locked. Better to say so now than to have a
-# password dialog appear out of nowhere later.
+[[ -n $subnet ]] && ui_info "$TITLE" "$(t host_ufw_added "$subnet" "$port")"
+
+# Autologin means PAM never sees a password, so anything that would normally be
+# unlocked with it stays locked. Better to say so now than to have a password
+# dialog appear out of nowhere later.
 user_home=$(getent passwd "$target_user" | cut -d: -f6)
 locked_stores=""
 if compgen -G "$user_home/.local/share/keyrings/*.keyring" >/dev/null 2>&1; then
@@ -326,5 +389,5 @@ if compgen -G "$user_home/.local/share/kwalletd/*.kwl" >/dev/null 2>&1; then
 fi
 [[ -n $locked_stores ]] && ui_info "$TITLE" "$(t host_keyring_warning "$locked_stores")"
 
-ui_info "$TITLE" "$(t host_done "$(pairing_token "$port" "$secret" \
+ui_info "$TITLE" "$(t host_done "$(pairing_token "$port" "$effective_secret" \
     "$sb_token" "$sb_secret" "$sb_device" "$sb_command")")"

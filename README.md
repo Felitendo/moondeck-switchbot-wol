@@ -80,7 +80,12 @@ On the host:
 curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh | bash
 ```
 
-Run it without sudo in front, it asks for root itself. `sudo curl … | sudo bash` would not help anyway: sudo closes the descriptors a downloaded script may live on, so the script hands sudo a real path it downloaded to.
+Run it without sudo in front. It asks its questions as you, in the same dialog
+windows the Deck side uses, and only calls sudo once at the end for the
+installation itself — root has no session to draw a window on, and prompting for
+API credentials in a terminal is exactly where pasting gets awkward. What sudo
+gets handed is a mode 600 file with the answers, not a command line full of
+secrets, and the SwitchBot credentials never reach the privileged half at all.
 
 It asks which user and session to log in, generates the secret, installs a
 socket-activated systemd service and, if `ufw` is active, opens the port for
