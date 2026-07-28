@@ -1,0 +1,25 @@
+[Unit]
+Description=MoonDeck one-shot login trigger (%i)
+Documentation=https://github.com/Felitendo/moondeck-switchbot-wol
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/moondeck-login-agent
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+TimeoutStartSec=180
+
+# The agent has to write /etc/plasmalogin.conf and restart the display
+# manager, so it stays root, but nothing beyond that is needed.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native

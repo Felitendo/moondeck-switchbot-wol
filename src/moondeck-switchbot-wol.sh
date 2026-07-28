@@ -44,16 +44,20 @@ usage() {
 Usage: moondeck-switchbot-wol [--test] [HOSTNAME IP_ADDRESS PORT MAC]
 
 Triggers the configured SwitchBot device. MoonDeck passes the four host
-arguments automatically; they are ignored except for logging.
+arguments automatically; they are ignored except for logging and, when the
+one-shot login trigger is configured, for finding the host on the network.
 
-  --test   ignore the cooldown, used by the installer to verify the setup
-  --help   show this text
+  --test              ignore the cooldown, used by the installer
+  --arm-login HOST    only wait for the host and send the login trigger
+  --help              show this text
 
 Configuration: see the CONFIG_FILE path reported by --help-config.
 EOF
 }
 
+SELF=$0
 test_mode=0
+mode=press
 case ${1:-} in
     --help | -h)
         usage
@@ -65,6 +69,10 @@ case ${1:-} in
         ;;
     --test)
         test_mode=1
+        shift
+        ;;
+    --arm-login)
+        mode=arm
         shift
         ;;
 esac
@@ -79,7 +87,70 @@ done
 COMMAND=${COMMAND:-press}
 COOLDOWN=${COOLDOWN:-180}
 API_BASE=${API_BASE:-https://api.switch-bot.com/v1.1}
+LOGIN_TRIGGER_SECRET=${LOGIN_TRIGGER_SECRET:-}
+LOGIN_TRIGGER_PORT=${LOGIN_TRIGGER_PORT:-58471}
+LOGIN_TRIGGER_HOST=${LOGIN_TRIGGER_HOST:-}
+LOGIN_TRIGGER_TIMEOUT=${LOGIN_TRIGGER_TIMEOUT:-240}
 
+# Challenge and response against the agent on the host. The secret is handed
+# over in the environment, never in the argument list, so it stays out of the
+# process list. Runs in its own bash so a hanging connection can be killed.
+trigger_login() {
+    local host=$1 port=$2
+    local greeting challenge response answer
+
+    exec 3<>"/dev/tcp/$host/$port" || return 1
+    if ! read -r -t 10 greeting <&3; then
+        exec 3<&-
+        return 1
+    fi
+    case $greeting in
+        "MOONDECK-LOGIN-1 "*) challenge=${greeting##* } ;;
+        *)
+            exec 3<&-
+            return 1
+            ;;
+    esac
+
+    response=$(printf '%s' "$challenge" |
+        openssl dgst -sha256 -hmac "$MOONDECK_LOGIN_SECRET" -binary | base64)
+    printf '%s\n' "$response" >&3
+    read -r -t 60 answer <&3 || answer="no answer"
+    exec 3<&-
+
+    printf '%s' "$answer"
+    [[ $answer == OK || $answer == ALREADY-LOGGED-IN ]]
+}
+export -f trigger_login
+
+# The host needs to boot first, so keep knocking until it answers.
+arm_login() {
+    local host=$1 deadline answer
+    [[ -n $host ]] || die "no host address for the login trigger"
+    deadline=$(($(date +%s) + LOGIN_TRIGGER_TIMEOUT))
+    log "waiting for $host:$LOGIN_TRIGGER_PORT to take the login trigger"
+
+    while (($(date +%s) < deadline)); do
+        if answer=$(MOONDECK_LOGIN_SECRET="$LOGIN_TRIGGER_SECRET" \
+            timeout 30 bash -c 'trigger_login "$0" "$1"' "$host" "$LOGIN_TRIGGER_PORT"); then
+            log "host answered: $answer"
+            return 0
+        fi
+        [[ -n ${answer:-} ]] && log "host answered: $answer"
+        sleep 5
+    done
+
+    log "the host never took the login trigger within ${LOGIN_TRIGGER_TIMEOUT}s"
+    return 1
+}
+
+if [[ $mode == arm ]]; then
+    [[ -n $LOGIN_TRIGGER_SECRET ]] || die "no LOGIN_TRIGGER_SECRET in $CONFIG_FILE"
+    arm_login "${1:-}"
+    exit $?
+fi
+
+host_argument=${2:-${1:-}}
 log "invoked with: ${*:-<no arguments>}"
 
 now=$(date +%s)
@@ -129,3 +200,19 @@ compact_response=${response//[[:space:]]/}
 
 printf '%s\n' "$now" >"$STAMP_FILE" 2>/dev/null || true
 log "SwitchBot command '$COMMAND' sent successfully"
+
+# The host is only starting to boot now, so the login trigger has to keep
+# trying in the background. Its output must not stay attached to MoonDeck,
+# which reads this process' stdout until it closes.
+if [[ -n $LOGIN_TRIGGER_SECRET ]]; then
+    trigger_host=${LOGIN_TRIGGER_HOST:-$host_argument}
+    if [[ -z $trigger_host ]]; then
+        log "no host address available, skipping the login trigger"
+    elif command -v setsid >/dev/null 2>&1; then
+        setsid "$SELF" --arm-login "$trigger_host" >/dev/null 2>>"$LOG_FILE" </dev/null &
+        log "login trigger for $trigger_host handed off to the background"
+    else
+        ("$SELF" --arm-login "$trigger_host" >/dev/null 2>>"$LOG_FILE" </dev/null &)
+        log "login trigger for $trigger_host handed off to the background"
+    fi
+fi

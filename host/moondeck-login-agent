@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+"""One-shot login trigger for hosts woken by moondeck-switchbot-wol.
+
+Runs as a socket activated service, so it is reachable while the login screen
+is up and long before any user session exists. A client that proves it knows
+the shared secret gets the host to log the configured user in exactly once;
+every other way of switching the machine on still asks for a password.
+
+The protocol is a challenge and response, so the secret never travels over the
+network:
+
+    server: MOONDECK-LOGIN-1 <nonce>
+    client: base64(hmac_sha256(secret, nonce))
+    server: OK | DENIED | ALREADY-LOGGED-IN | ERROR
+
+Standard input and output are the socket, standard error goes to the journal.
+
+Arming only sets User= in the [Autologin] section of the display manager
+configuration and records what was there before, so unrelated settings in that
+file survive untouched. The previous state lives on disk rather than in memory:
+if the machine dies between arming and logging in, --disarm restores it on the
+next boot, before the display manager gets to read it.
+"""
+
+import base64
+import hashlib
+import hmac
+import json
+import os
+import signal
+import subprocess
+import sys
+import secrets
+import time
+
+CONFIG_FILE = "/etc/moondeck-login-agent/config"
+SECRET_FILE = "/etc/moondeck-login-agent/secret"
+PLASMALOGIN_CONF = "/etc/plasmalogin.conf"
+STATE_FILE = "/var/lib/moondeck-login-agent/armed.json"
+SECTION = "Autologin"
+PROTOCOL = "MOONDECK-LOGIN-1"
+HANDSHAKE_TIMEOUT = 15
+SESSION_WAIT = 90
+
+DRY_RUN = os.environ.get("MOONDECK_LOGIN_DRYRUN") == "1"
+
+
+def path_of(variable, default):
+    return os.environ.get(variable, default)
+
+
+def log(message):
+    print(message, file=sys.stderr, flush=True)
+
+
+def reply(message):
+    sys.stdout.write(message + "\n")
+    sys.stdout.flush()
+
+
+def read_config():
+    config = {"User": "", "Session": "plasma.desktop"}
+    path = path_of("MOONDECK_LOGIN_CONFIG", CONFIG_FILE)
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            config[key.strip()] = value.strip()
+    if not config["User"]:
+        raise ValueError("no User configured in " + path)
+    return config
+
+
+def read_secret():
+    with open(path_of("MOONDECK_LOGIN_SECRET", SECRET_FILE), "rb") as handle:
+        return handle.read().strip()
+
+
+def expected_response(secret, nonce):
+    digest = hmac.new(secret, nonce.encode("ascii"), hashlib.sha256).digest()
+    return base64.b64encode(digest).decode("ascii")
+
+
+# --- the smallest ini editor that keeps every other line intact --------------
+
+def read_lines(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return handle.read().splitlines()
+    except FileNotFoundError:
+        return []
+
+
+def write_lines(path, lines):
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+
+
+def section_bounds(lines):
+    """Where the [Autologin] entries start and end, or (None, None)."""
+    start = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if start is None:
+            if stripped == "[%s]" % SECTION:
+                start = index + 1
+        elif stripped.startswith("["):
+            return start, index
+    return (start, len(lines)) if start is not None else (None, None)
+
+
+def entry_index(lines, key):
+    start, end = section_bounds(lines)
+    if start is None:
+        return None
+    for index in range(start, end):
+        stripped = lines[index].strip()
+        if stripped.startswith("#") or "=" not in stripped:
+            continue
+        if stripped.split("=", 1)[0].strip() == key:
+            return index
+    return None
+
+
+def get_entry(lines, key):
+    index = entry_index(lines, key)
+    return lines[index].split("=", 1)[1].strip() if index is not None else None
+
+
+def set_entry(lines, key, value):
+    index = entry_index(lines, key)
+    if index is not None:
+        lines[index] = "%s=%s" % (key, value)
+        return
+    start, _ = section_bounds(lines)
+    if start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append("[%s]" % SECTION)
+        lines.append("%s=%s" % (key, value))
+    else:
+        lines.insert(start, "%s=%s" % (key, value))
+
+
+def drop_entry(lines, key):
+    index = entry_index(lines, key)
+    if index is not None:
+        del lines[index]
+
+
+# --- arming and disarming ----------------------------------------------------
+
+def load_state():
+    try:
+        with open(path_of("MOONDECK_LOGIN_STATE", STATE_FILE), encoding="utf-8") as handle:
+            return json.load(handle)
+    except (FileNotFoundError, ValueError):
+        return None
+
+
+def save_state(state):
+    path = path_of("MOONDECK_LOGIN_STATE", STATE_FILE)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(state, handle)
+
+
+def clear_state():
+    try:
+        os.unlink(path_of("MOONDECK_LOGIN_STATE", STATE_FILE))
+    except FileNotFoundError:
+        pass
+
+
+def arm_autologin(config):
+    path = path_of("MOONDECK_LOGIN_PLASMACONF", PLASMALOGIN_CONF)
+    lines = read_lines(path)
+
+    if load_state() is None:
+        save_state({
+            "existed": os.path.exists(path),
+            "User": get_entry(lines, "User"),
+            "Session": get_entry(lines, "Session"),
+        })
+
+    set_entry(lines, "User", config["User"])
+    if get_entry(lines, "Session") is None:
+        set_entry(lines, "Session", config["Session"])
+    write_lines(path, lines)
+    log("autologin armed for %s" % config["User"])
+
+
+def disarm_autologin():
+    state = load_state()
+    if state is None:
+        return False
+
+    path = path_of("MOONDECK_LOGIN_PLASMACONF", PLASMALOGIN_CONF)
+    if not state.get("existed", True):
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+    else:
+        lines = read_lines(path)
+        for key in ("User", "Session"):
+            if state.get(key) is None:
+                drop_entry(lines, key)
+            else:
+                set_entry(lines, key, state[key])
+        write_lines(path, lines)
+
+    clear_state()
+    log("autologin disarmed")
+    return True
+
+
+def user_state(user):
+    """active, online, closing, lingering or an empty string when logged out."""
+    try:
+        result = subprocess.run(
+            ["loginctl", "show-user", user, "-p", "State", "--value"],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def restart_display_manager():
+    if DRY_RUN:
+        log("dry run, would restart display-manager.service")
+        return
+    subprocess.run(["systemctl", "restart", "display-manager.service"],
+                   timeout=60, check=True)
+
+
+def wait_for_session(user):
+    if DRY_RUN:
+        return True
+    deadline = time.monotonic() + SESSION_WAIT
+    while time.monotonic() < deadline:
+        if user_state(user) in ("active", "online"):
+            return True
+        time.sleep(2)
+    return False
+
+
+def handle_request():
+    config = read_config()
+    secret = read_secret()
+
+    nonce = secrets.token_hex(16)
+    reply("%s %s" % (PROTOCOL, nonce))
+
+    signal.alarm(HANDSHAKE_TIMEOUT)
+    answer = sys.stdin.readline().strip()
+    signal.alarm(0)
+
+    if not hmac.compare_digest(answer, expected_response(secret, nonce)):
+        reply("DENIED")
+        log("rejected a client with a wrong response")
+        return 0
+
+    if user_state(config["User"]) in ("active", "online"):
+        reply("ALREADY-LOGGED-IN")
+        log("%s is already logged in, nothing to do" % config["User"])
+        return 0
+
+    log("valid trigger, logging %s in once" % config["User"])
+    arm_autologin(config)
+    reply("OK")
+
+    try:
+        restart_display_manager()
+    except (subprocess.SubprocessError, OSError) as error:
+        log("restarting the display manager failed: %s" % error)
+        disarm_autologin()
+        return 1
+
+    if not wait_for_session(config["User"]):
+        log("no session showed up within %ss, disarming anyway" % SESSION_WAIT)
+    disarm_autologin()
+    return 0
+
+
+def main():
+    def on_timeout(_signum, _frame):
+        raise TimeoutError("the client did not answer in time")
+
+    if "--disarm" in sys.argv[1:]:
+        return 0 if disarm_autologin() is not None else 0
+
+    signal.signal(signal.SIGALRM, on_timeout)
+    try:
+        return handle_request()
+    except TimeoutError as error:
+        log(str(error))
+        return 1
+    except Exception as error:  # noqa: BLE001 - the reply must not leak details
+        log("failed: %s" % error)
+        try:
+            reply("ERROR")
+        except OSError:
+            pass
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

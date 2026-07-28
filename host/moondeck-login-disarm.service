@@ -1,0 +1,12 @@
+[Unit]
+Description=Remove a leftover MoonDeck one-shot autologin
+Documentation=https://github.com/Felitendo/moondeck-switchbot-wol
+Before=display-manager.service
+ConditionPathExists=/var/lib/moondeck-login-agent/armed.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/moondeck-login-agent --disarm
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=MoonDeck one-shot login trigger
+Documentation=https://github.com/Felitendo/moondeck-switchbot-wol
+
+[Socket]
+ListenStream=@PORT@
+Accept=yes
+MaxConnections=4
+MaxConnectionsPerSource=2
+TriggerLimitIntervalSec=60
+TriggerLimitBurst=20
+
+[Install]
+WantedBy=sockets.target

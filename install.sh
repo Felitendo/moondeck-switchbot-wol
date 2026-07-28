@@ -101,6 +101,16 @@ if [[ -e $target ]]; then
     ui_yesno "$TITLE" "$(t path_exists "$target")" || abort
 fi
 
+trigger_secret=""
+trigger_port=""
+trigger_host=""
+if ui_yesno "$TITLE" "$(t trigger_ask)"; then
+    trigger_secret=$(ui_password "$TITLE" "$(t trigger_secret)") || abort
+    [[ -n $trigger_secret ]] || fail "$(t input_empty)"
+    trigger_port=$(ui_input "$TITLE" "$(t trigger_port)" "58471") || abort
+    trigger_host=$(ui_input "$TITLE" "$(t trigger_host)" "") || abort
+fi
+
 install -D -m 600 /dev/null "$CONFIG_FILE" 2>/dev/null || fail "$(t write_failed "$CONFIG_FILE")"
 chmod 700 "$CONFIG_DIR"
 {
@@ -114,6 +124,14 @@ chmod 700 "$CONFIG_DIR"
     printf 'COOLDOWN=180\n'
     printf '# Where install.sh put the script, used by uninstall.sh.\n'
     printf 'INSTALL_PATH=%q\n' "$target"
+    if [[ -n $trigger_secret ]]; then
+        printf '# One-shot login trigger, see host/install-host.sh on the host.\n'
+        printf 'LOGIN_TRIGGER_SECRET=%q\n' "$trigger_secret"
+        printf 'LOGIN_TRIGGER_PORT=%q\n' "${trigger_port:-58471}"
+        printf 'LOGIN_TRIGGER_HOST=%q\n' "$trigger_host"
+        printf '# Seconds to keep knocking while the host boots.\n'
+        printf 'LOGIN_TRIGGER_TIMEOUT=240\n'
+    fi
 } >"$CONFIG_FILE"
 
 mkdir -p "$(dirname "$target")"
