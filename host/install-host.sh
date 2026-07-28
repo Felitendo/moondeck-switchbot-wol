@@ -9,13 +9,35 @@ RAW_BASE=${MOONDECK_RAW_BASE:-https://raw.githubusercontent.com/Felitendo/moonde
 BOOTSTRAP_DIR=${MOONDECK_BOOTSTRAP_DIR:-}
 trap 'if [[ -n $BOOTSTRAP_DIR ]]; then rm -rf "$BOOTSTRAP_DIR"; fi' EXIT
 
+SELF_PART=host/install-host.sh
+# Piping into bash makes standard input the script itself, which is where the
+# wizard needs to read the answers from. Fetch a real copy and hand over to it,
+# with standard input back on the terminal.
+if [[ $0 == bash || $0 == */bash ]]; then
+    command -v curl >/dev/null 2>&1 || {
+        printf 'curl is required\n' >&2
+        exit 1
+    }
+    [[ -n $BOOTSTRAP_DIR ]] || BOOTSTRAP_DIR=$(mktemp -d)
+    curl -fsSL "$RAW_BASE/$SELF_PART" -o "$BOOTSTRAP_DIR/entry.sh" || {
+        printf 'could not download %s\n' "$SELF_PART" >&2
+        exit 1
+    }
+    export MOONDECK_RAW_BASE="$RAW_BASE" MOONDECK_BOOTSTRAP_DIR="$BOOTSTRAP_DIR"
+    # a readable /dev/tty node does not mean it can be opened, only trying does
+    if (: </dev/tty) 2>/dev/null; then
+        exec bash "$BOOTSTRAP_DIR/entry.sh" "$@" </dev/tty
+    fi
+    exec bash "$BOOTSTRAP_DIR/entry.sh" "$@"
+fi
+
 # Works without the repository next to it, see install.sh.
 bootstrap() {
     command -v curl >/dev/null 2>&1 || {
         printf 'curl is required to download the missing parts\n' >&2
         exit 1
     }
-    BOOTSTRAP_DIR=$(mktemp -d)
+    [[ -n $BOOTSTRAP_DIR ]] || BOOTSTRAP_DIR=$(mktemp -d)
     local part
     for part in "$@"; do
         mkdir -p "$BOOTSTRAP_DIR/$(dirname "$part")"

@@ -19,12 +19,12 @@ The installer is a small wizard — it explains where to find your API credentia
 Run this in desktop mode on the Steam Deck:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/install.sh)
+curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/install.sh | bash
 ```
 
 Nothing is left behind: the installer pulls the few files it needs into a temporary directory and removes it again when it is done. A checkout works just as well — `./install.sh` uses the files next to it when they are there.
 
-It is deliberately not `curl … | bash`. That hands the script to bash on standard input, which is exactly where the wizard needs to read your answers from.
+Piping into bash normally breaks a wizard, because standard input is then the script rather than you. The installer notices and re-runs itself from a downloaded copy with the terminal back on standard input, so the prompts work. `bash <(curl …)` is fine too, in shells that have process substitution — fish does not.
 
 The wizard uses `kdialog` or `zenity` when a graphical session is available. Add `--cli` for plain terminal prompts.
 
@@ -73,10 +73,10 @@ replaying is ever on the wire.
 On the host:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh)
+curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh | bash
 ```
 
-It asks for root through sudo itself. Run it without sudo in front — sudo closes the file descriptor the downloaded script lives on, so it re-runs itself from a real path instead.
+Run it without sudo in front, it asks for root itself. `sudo curl … | sudo bash` would not help anyway: sudo closes the descriptors a downloaded script may live on, so the script hands sudo a real path it downloaded to.
 
 It asks which user and session to log in, generates the secret, installs a
 socket-activated systemd service and, if `ufw` is active, opens the port for
@@ -94,7 +94,7 @@ itself in.
 Remove all of it again with:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh) --uninstall
+curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh | bash -s -- --uninstall
 ```
 
 Worth knowing: whoever holds the Deck can log into your host. And with
@@ -132,7 +132,7 @@ The cooldown exists because a power button is not a magic packet: sending the sa
 ## Uninstall
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/uninstall.sh)
+curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/uninstall.sh | bash
 ```
 
 Removes the script and offers to delete the stored credentials. Remember to switch *Use custom WOL executable* back off in MoonDeck.
