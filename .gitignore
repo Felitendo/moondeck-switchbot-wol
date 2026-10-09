@@ -1,4 +1,4 @@
-*.log
-*.swp
+# build artifacts
+po/*.mo
+doc/*.1
 __pycache__/
-*.pyc

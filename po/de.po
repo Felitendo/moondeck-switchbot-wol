@@ -1,0 +1,525 @@
+# German translation for moondeck-switchbot-wol.
+# Copyright (C) 2026 Felitendo
+# This file is distributed under the same license as moondeck-switchbot-wol.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: moondeck-switchbot-wol 1.0.0\n"
+"Report-Msgid-Bugs-To: https://github.com/Felitendo/moondeck-switchbot-wol/issues\n"
+"POT-Creation-Date: 2026-10-09 11:58+0200\n"
+"PO-Revision-Date: 2026-10-09 12:00+0200\n"
+"Last-Translator: Felitendo\n"
+"Language-Team: German\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "ON"
+msgstr "AN"
+
+msgid "OFF"
+msgstr "AUS"
+
+msgid "never"
+msgstr "nie"
+
+msgid "just now"
+msgstr "gerade eben"
+
+msgid "1 minute ago"
+msgstr "vor 1 Minute"
+
+#, sh-printf-format
+msgid "%d minutes ago"
+msgstr "vor %d Minuten"
+
+msgid "1 hour ago"
+msgstr "vor 1 Stunde"
+
+#, sh-printf-format
+msgid "%d hours ago"
+msgstr "vor %d Stunden"
+
+msgid "1 day ago"
+msgstr "vor 1 Tag"
+
+#, sh-printf-format
+msgid "%d days ago"
+msgstr "vor %d Tagen"
+
+msgid "This has to run as root."
+msgstr "Das muss als root laufen."
+
+msgid "This display manager is not supported. Plasma Login and SDDM are."
+msgstr ""
+"Dieser Display-Manager wird nicht unterstützt. Plasma Login und SDDM schon."
+
+msgid "Which user should be logged in? Set it under Settings first."
+msgstr ""
+"Welcher Benutzer soll angemeldet werden? Stell ihn zuerst unter "
+"Einstellungen ein."
+
+#, sh-printf-format
+msgid "Could not write %s."
+msgstr "Konnte %s nicht schreiben."
+
+#, sh-printf-format
+msgid "Could not start %s."
+msgstr "Konnte %s nicht starten."
+
+#, sh-printf-format
+msgid "Opened port %s in ufw, for %s only."
+msgstr "Port %s in ufw geöffnet, nur für %s."
+
+#, sh-printf-format
+msgid "The login trigger is on. A wake-up from the Deck logs %s in."
+msgstr "Der Login-Trigger ist an. Ein Wecken vom Deck meldet %s an."
+
+#, sh-printf-format
+msgid "Next, pair the Deck: sudo %s host code"
+msgstr "Als Nächstes das Deck koppeln: sudo %s host code"
+
+msgid ""
+"The login trigger is off. The PC asks for the password again, however it is "
+"switched on."
+msgstr ""
+"Der Login-Trigger ist aus. Der PC fragt wieder nach dem Passwort, egal wie "
+"er eingeschaltet wird."
+
+msgid "New secret made. A Deck that was paired before has to be paired again."
+msgstr ""
+"Neues Geheimnis erzeugt. Ein schon gekoppeltes Deck muss neu gekoppelt "
+"werden."
+
+#, sh-printf-format
+msgid "Unknown option: %s"
+msgstr "Unbekannte Option: %s"
+
+#, sh-printf-format
+msgid "The login trigger is off. Turn it on with: sudo %s host enable"
+msgstr "Der Login-Trigger ist aus. Einschalten mit: sudo %s host enable"
+
+#, sh-printf-format
+msgid "%s, logged in"
+msgstr "%s, angemeldet"
+
+#, sh-printf-format
+msgid "%s, was logged in already"
+msgstr "%s, war schon angemeldet"
+
+#, sh-printf-format
+msgid "%s, logging in did not work"
+msgstr "%s, Anmeldung hat nicht geklappt"
+
+#, sh-printf-format
+msgid "%s, turned away a Deck with the wrong secret"
+msgstr "%s, ein Deck mit falschem Geheimnis abgewiesen"
+
+msgid "Login trigger"
+msgstr "Login-Trigger"
+
+msgid "Logs in"
+msgstr "Meldet an"
+
+msgid "nobody yet"
+msgstr "noch niemand"
+
+msgid "Display manager"
+msgstr "Display-Manager"
+
+msgid "not supported (Plasma Login and SDDM are)"
+msgstr "nicht unterstützt (Plasma Login und SDDM schon)"
+
+#, sh-printf-format
+msgid "(open in ufw for %s)"
+msgstr "(in ufw offen für %s)"
+
+msgid "Port"
+msgstr "Port"
+
+msgid "Push when ready"
+msgstr "Push, wenn bereit"
+
+msgid "Last wake-up"
+msgstr "Zuletzt geweckt"
+
+msgid "this PC"
+msgstr "dieser PC"
+
+msgid "SwitchBot"
+msgstr "SwitchBot"
+
+msgid ""
+"This needs the token and the secret of your SwitchBot account. In the "
+"SwitchBot app, go to Profile, Preferences, tap App Version 10 times, then "
+"open Developer Options."
+msgstr ""
+"Dafür braucht es Token und Secret deines SwitchBot-Kontos. In der SwitchBot-"
+"App: Profil, Einstellungen, 10-mal auf App-Version tippen, dann "
+"Entwickleroptionen öffnen."
+
+msgid "Token:"
+msgstr "Token:"
+
+msgid "Secret:"
+msgstr "Secret:"
+
+msgid "Asking SwitchBot for your devices..."
+msgstr "Frage SwitchBot nach deinen Geräten..."
+
+msgid ""
+"Your account has no devices. A Bot shows up once it is paired with a "
+"SwitchBot hub and Cloud Services is on for it in the app."
+msgstr ""
+"Dein Konto hat keine Geräte. Ein Bot taucht erst auf, wenn er mit einem "
+"SwitchBot Hub gekoppelt ist und Cloud-Dienste für ihn in der App an sind."
+
+msgid "Nothing entered."
+msgstr "Nichts eingegeben."
+
+msgid "Try again?"
+msgstr "Noch einmal versuchen?"
+
+msgid "Which device presses the power button?"
+msgstr "Welches Gerät drückt den Power-Knopf?"
+
+msgid "How is it set up in the SwitchBot app?"
+msgstr "Wie ist es in der SwitchBot-App eingestellt?"
+
+msgid "Press mode: the arm pushes and comes back (recommended)"
+msgstr "Drückmodus: der Arm drückt und fährt zurück (empfohlen)"
+
+msgid "Switch mode, or a smart plug: switch on"
+msgstr "Schaltermodus oder eine smarte Steckdose: einschalten"
+
+msgid "(none)"
+msgstr "(keins)"
+
+msgid "Up/Down: select, Enter: change, Esc: back"
+msgstr "Hoch/Runter: auswählen, Enter: ändern, Esc: zurück"
+
+msgid "Settings"
+msgstr "Einstellungen"
+
+#, sh-printf-format
+msgid "%s seconds"
+msgstr "%s Sekunden"
+
+msgid "Make a new secret? The Deck has to be paired again."
+msgstr "Ein neues Geheimnis erzeugen? Das Deck muss dann neu gekoppelt werden."
+
+msgid "SwitchBot wake-up"
+msgstr "Wecken per SwitchBot"
+
+msgid "not set up"
+msgstr "nicht eingerichtet"
+
+msgid "MoonDeck"
+msgstr "MoonDeck"
+
+msgid "no PC added yet"
+msgstr "noch kein PC hinzugefügt"
+
+msgid "not found"
+msgstr "nicht gefunden"
+
+msgid "Login on the PC"
+msgstr "Anmeldung am PC"
+
+msgid "paired"
+msgstr "gekoppelt"
+
+msgid "not paired"
+msgstr "nicht gekoppelt"
+
+msgid "Last press"
+msgstr "Zuletzt gedrückt"
+
+msgid "Pair with the PC"
+msgstr "Mit dem PC koppeln"
+
+msgid "On the PC, run this and press 2:"
+msgstr "Starte das auf dem PC und drücke 2:"
+
+msgid ""
+"Copy the line that starts with msw1: and paste it here. In Konsole, paste "
+"with Ctrl+Shift+V."
+msgstr ""
+"Kopiere die Zeile, die mit msw1: beginnt, und füge sie hier ein. In Konsole "
+"fügst du mit Strg+Umschalt+V ein."
+
+msgid "Pairing code:"
+msgstr "Kopplungscode:"
+
+#, sh-printf-format
+msgid "They stay on this Deck, in %s, and only ever go to SwitchBot."
+msgstr "Sie bleiben auf diesem Deck, in %s, und gehen nur an SwitchBot."
+
+msgid ""
+"First the SwitchBot. A pairing code from the PC carries all of it, so "
+"nothing has to be typed here."
+msgstr ""
+"Zuerst der SwitchBot. Ein Kopplungscode vom PC bringt alles mit, dann musst "
+"du hier nichts tippen."
+
+msgid "Paste a pairing code from the PC"
+msgstr "Einen Kopplungscode vom PC einfügen"
+
+msgid "Set up the SwitchBot by hand"
+msgstr "Den SwitchBot von Hand einrichten"
+
+msgid ""
+"A second press switches the PC off again. MoonDeck cannot press twice within "
+"this time."
+msgstr ""
+"Ein zweiter Druck schaltet den PC wieder aus. In dieser Zeit kann MoonDeck "
+"nicht zweimal drücken."
+
+msgid "Press again after"
+msgstr "Wieder drücken nach"
+
+msgid "How long the Deck waits for the PC to boot, to log it in."
+msgstr ""
+"So lange wartet das Deck, bis der PC hochgefahren ist, um ihn anzumelden."
+
+msgid "Wait for the PC"
+msgstr "Auf den PC warten"
+
+msgid "Turn SwitchBot wake-up on or off"
+msgstr "Wecken per SwitchBot ein- oder ausschalten"
+
+msgid "Press the button now"
+msgstr "Den Knopf jetzt drücken"
+
+msgid "Quit"
+msgstr "Beenden"
+
+msgid "The SwitchBot really presses the button. Go ahead?"
+msgstr "Der SwitchBot drückt den Knopf wirklich. Weiter?"
+
+msgid "Pairing code"
+msgstr "Kopplungscode"
+
+msgid ""
+"The code can carry the SwitchBot setup too. Then nothing has to be typed on "
+"the Deck. The credentials are not kept on this PC, they only go into the "
+"code."
+msgstr ""
+"Der Code kann auch die SwitchBot-Einrichtung mitbringen. Dann musst du auf "
+"dem Deck nichts tippen. Die Zugangsdaten bleiben nicht auf diesem PC, sie "
+"landen nur im Code."
+
+msgid "Put the SwitchBot setup into the code?"
+msgstr "Die SwitchBot-Einrichtung mit in den Code packen?"
+
+msgid "They are not kept on this PC. They only go into the code."
+msgstr "Sie bleiben nicht auf diesem PC. Sie landen nur im Code."
+
+#, sh-printf-format
+msgid "On the Deck, run %s and press 2. Then paste this line:"
+msgstr "Starte auf dem Deck %s und drücke 2. Dann füge diese Zeile ein:"
+
+msgid "It holds the secret of the login trigger. Keep it to yourself."
+msgstr "Er enthält das Geheimnis des Login-Triggers. Behalte ihn für dich."
+
+msgid "The user this PC logs in after a wake-up from the Deck."
+msgstr "Der Benutzer, den dieser PC nach einem Wecken vom Deck anmeldet."
+
+msgid "Where the login trigger listens. After a change, pair the Deck again."
+msgstr ""
+"Hier lauscht der Login-Trigger. Koppel das Deck nach einer Änderung neu."
+
+msgid "Push topic"
+msgstr "Push-Topic"
+
+msgid ""
+"Sends a push through ntfy once the PC is ready. Anyone who knows the topic "
+"can read along, so pick one nobody guesses. Empty turns it off."
+msgstr ""
+"Schickt einen Push über ntfy, sobald der PC bereit ist. Wer das Topic kennt, "
+"kann mitlesen, also nimm eins, das niemand errät. Leer schaltet es aus."
+
+msgid "Any ntfy server works, your own too."
+msgstr "Jeder ntfy-Server geht, auch dein eigener."
+
+msgid "Push server"
+msgstr "Push-Server"
+
+msgid "Secret"
+msgstr "Geheimnis"
+
+msgid ""
+"Shared with the Deck through the pairing code. A new one turns away every "
+"Deck paired before."
+msgstr ""
+"Wird über den Kopplungscode mit dem Deck geteilt. Ein neues weist jedes "
+"vorher gekoppelte Deck ab."
+
+msgid "Turn the login trigger on or off"
+msgstr "Den Login-Trigger ein- oder ausschalten"
+
+msgid "Pairing code for the Deck"
+msgstr "Kopplungscode für das Deck"
+
+#, sh-printf-format
+msgid "Could not reach the SwitchBot API: %s"
+msgstr "Die SwitchBot-API ist nicht erreichbar: %s"
+
+#, sh-printf-format
+msgid "The SwitchBot API said no: %s (status %s)"
+msgstr "Die SwitchBot-API hat abgelehnt: %s (Status %s)"
+
+msgid "The SwitchBot helper failed."
+msgstr "Das SwitchBot-Hilfsprogramm ist fehlgeschlagen."
+
+msgid "switch on"
+msgstr "einschalten"
+
+msgid "press"
+msgstr "drücken"
+
+msgid "Press any key to continue..."
+msgstr "Weiter mit einer beliebigen Taste..."
+
+msgid "[y/N]"
+msgstr "[j/N]"
+
+#, sh-printf-format
+msgid "%d characters"
+msgstr "%d Zeichen"
+
+msgid "Up/Down: select, Enter: choose, Esc: back"
+msgstr "Hoch/Runter: auswählen, Enter: nehmen, Esc: zurück"
+
+msgid "One moment..."
+msgstr "Einen Moment..."
+
+msgid ""
+"Run this as your own user, not as root. Only the host commands need root."
+msgstr ""
+"Starte das als dein eigener Benutzer, nicht als root. Nur die host-Befehle "
+"brauchen root."
+
+msgid ""
+"The SwitchBot is not set up yet. Pair with the PC, or set it up by hand."
+msgstr ""
+"Der SwitchBot ist noch nicht eingerichtet. Koppel das Deck mit dem PC oder "
+"richte ihn von Hand ein."
+
+msgid "MoonDeck has no PC yet. Add yours in MoonDeck first."
+msgstr "MoonDeck kennt noch keinen PC. Füge deinen zuerst in MoonDeck hinzu."
+
+msgid "MoonDeck was not found. Install it, and add your PC in it."
+msgstr ""
+"MoonDeck wurde nicht gefunden. Installiere es und füge deinen PC hinzu."
+
+msgid "Could not change MoonDeck's settings."
+msgstr "Konnte die Einstellungen von MoonDeck nicht ändern."
+
+#, sh-printf-format
+msgid "MoonDeck now wakes %s with the SwitchBot."
+msgstr "MoonDeck weckt %s jetzt mit dem SwitchBot."
+
+msgid "MoonDeck reads this when Game Mode starts."
+msgstr "MoonDeck liest das beim Start des Spielmodus."
+
+msgid "The PC will stop at its login screen. Pair with the PC to get past it."
+msgstr ""
+"Der PC bleibt am Anmeldebildschirm stehen. Koppel das Deck mit dem PC, um "
+"daran vorbeizukommen."
+
+msgid "Could not put MoonDeck's settings back."
+msgstr "Konnte die Einstellungen von MoonDeck nicht zurücksetzen."
+
+msgid "MoonDeck sends its own Wake-on-LAN packet again."
+msgstr "MoonDeck schickt wieder sein eigenes Wake-on-LAN-Paket."
+
+msgid "No pairing code given."
+msgstr "Kein Kopplungscode angegeben."
+
+msgid ""
+"That is not a pairing code. It is the line starting with msw1: that the PC "
+"shows."
+msgstr ""
+"Das ist kein Kopplungscode. Gemeint ist die Zeile, die mit msw1: beginnt und "
+"die der PC anzeigt."
+
+msgid "Paired. The PC logs in when the Deck wakes it."
+msgstr "Gekoppelt. Der PC meldet sich an, wenn das Deck ihn weckt."
+
+#, sh-printf-format
+msgid "SwitchBot set up: %s."
+msgstr "SwitchBot eingerichtet: %s."
+
+msgid "The code has no SwitchBot setup. Set it up by hand next."
+msgstr ""
+"Der Code enthält keine SwitchBot-Einrichtung. Richte ihn als Nächstes von "
+"Hand ein."
+
+msgid "This asks questions, so it needs a terminal."
+msgstr "Das stellt Fragen und braucht deshalb ein Terminal."
+
+msgid "The SwitchBot got the command."
+msgstr "Der SwitchBot hat den Befehl bekommen."
+
+msgid "No wake-ups yet."
+msgstr "Noch nichts geweckt."
+
+msgid "Usage: moondeck-switchbot-wol [command]"
+msgstr "Aufruf: moondeck-switchbot-wol [Befehl]"
+
+msgid "On the Steam Deck:"
+msgstr "Auf dem Steam Deck:"
+
+msgid "Let MoonDeck wake the PC with the SwitchBot"
+msgstr "MoonDeck den PC mit dem SwitchBot wecken lassen"
+
+msgid "Give MoonDeck its own Wake-on-LAN back"
+msgstr "MoonDeck sein eigenes Wake-on-LAN zurückgeben"
+
+msgid "Pair with the PC, with the code it shows"
+msgstr "Mit dem PC koppeln, mit dem Code, den er zeigt"
+
+msgid "Show what is set up"
+msgstr "Zeigen, was eingerichtet ist"
+
+msgid "Show the last wake-ups"
+msgstr "Die letzten Weckvorgänge zeigen"
+
+msgid "On the PC that gets woken:"
+msgstr "Auf dem PC, der geweckt wird:"
+
+msgid "The menu for this end"
+msgstr "Das Menü für diese Seite"
+
+msgid "Turn the login trigger on"
+msgstr "Den Login-Trigger einschalten"
+
+msgid "Turn it off"
+msgstr "Ihn ausschalten"
+
+msgid "Show the pairing code for the Deck"
+msgstr "Den Kopplungscode für das Deck zeigen"
+
+msgid "Show this help"
+msgstr "Diese Hilfe zeigen"
+
+msgid "Show the version"
+msgstr "Die Version zeigen"
+
+msgid "Without a command the menu is shown."
+msgstr "Ohne Befehl erscheint das Menü."
+
+#, sh-printf-format
+msgid "Unknown command: %s"
+msgstr "Unbekannter Befehl: %s"
+
+msgid "Booted, but logging in did not work."
+msgstr "Hochgefahren, aber die Anmeldung hat nicht geklappt."
+
+msgid "Ready to stream."
+msgstr "Bereit zum Streamen."
+
+msgid "Logged in, but the stream port does not answer."
+msgstr "Angemeldet, aber der Stream-Port antwortet nicht."

@@ -1,0 +1,14 @@
+[Unit]
+Description=Take back a MoonDeck SwitchBot login left over from a crash
+Documentation=man:moondeck-switchbot-wol(1)
+# Before the display manager reads its config, so the leftover never logs
+# anybody in.
+Before=display-manager.service
+ConditionPathExists=/var/lib/moondeck-switchbot-wol/armed.json
+
+[Service]
+Type=oneshot
+ExecStart=@LIBEXECDIR@/login-agent --disarm
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=MoonDeck SwitchBot login trigger
+Documentation=man:moondeck-switchbot-wol(1)
+
+[Socket]
+# `moondeck-switchbot-wol host` writes a drop-in when another port is set.
+ListenStream=58471
+Accept=yes
+MaxConnections=4
+MaxConnectionsPerSource=2
+TriggerLimitIntervalSec=60
+TriggerLimitBurst=20
+
+[Install]
+WantedBy=sockets.target

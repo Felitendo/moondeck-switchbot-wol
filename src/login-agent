@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+#
+# The PC's end of the login trigger.
+#
+# Copyright (C) 2026 Felitendo
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""The PC's end of the login trigger.
+
+Started once per connection by moondeck-switchbot-wol-login.socket, so it is
+reachable while the login screen is up, long before anybody logs in. A Deck
+that proves it knows the shared secret gets the configured user logged in,
+once. Every other way of switching the PC on still asks for the password.
+
+    agent:  MSW-LOGIN 1 <nonce>
+    Deck:   base64(hmac_sha256(secret, nonce))
+    agent:  OK | ALREADY-LOGGED-IN | DENIED | ERROR
+
+Standard input and output are the connection, standard error is the journal.
+
+Logging in means: set User= in the [Autologin] section of the display
+manager's config, restart it, wait for the session and put the config back.
+What was there before is kept on disk. If the PC dies in between, the disarm
+unit puts it back at the next boot, before the display manager reads it.
+
+    login-agent            handle one connection
+    login-agent --disarm   put the config back, if it is still changed
+    login-agent --check    print the display manager's config file, or fail
+"""
+
+import base64
+import gettext
+import hashlib
+import hmac
+import json
+import os
+import secrets
+import signal
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
+
+CONFDIR = os.environ.get("MSW_HOST_CONFDIR", "/etc/moondeck-switchbot-wol")
+STATEDIR = os.environ.get("MSW_HOST_STATEDIR", "/var/lib/moondeck-switchbot-wol")
+LOCALEDIR = os.environ.get("MSW_LOCALEDIR", "@LOCALEDIR@")
+DRY_RUN = os.environ.get("MSW_DRY_RUN") == "1"
+
+CONFIG = os.path.join(CONFDIR, "host.conf")
+SECRET = os.path.join(CONFDIR, "secret")
+ARMED = os.path.join(STATEDIR, "armed.json")
+LAST = os.path.join(STATEDIR, "last")
+
+GREETING = "MSW-LOGIN 1"
+SECTION = "[Autologin]"
+
+# The display managers that read an [Autologin] section, and the file of
+# theirs that wins over everything in their conf.d folders.
+DISPLAY_MANAGERS = {
+    "plasmalogin.service": "/etc/plasmalogin.conf",
+    "sddm.service": "/etc/sddm.conf",
+}
+
+# Sunshine's port. A session is not the same as ready to stream: Sunshine
+# starts a moment later, and the push says so only once it answers.
+STREAM_PORT = 47989
+
+HANDSHAKE_TIMEOUT = 15
+SESSION_TIMEOUT = 90
+STREAM_TIMEOUT = 60
+
+
+def log(message):
+    print(message, file=sys.stderr, flush=True)
+
+
+def reply(message):
+    sys.stdout.write(message + "\n")
+    sys.stdout.flush()
+
+
+def translation():
+    if not any(os.environ.get(name) for name in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG")):
+        try:
+            with open("/etc/locale.conf", encoding="utf-8") as handle:
+                for line in handle:
+                    if line.startswith("LANG="):
+                        os.environ["LANG"] = line[5:].strip().strip('"')
+        except OSError:
+            pass
+    return gettext.translation("moondeck-switchbot-wol", LOCALEDIR, fallback=True).gettext
+
+
+_ = translation()
+
+
+def read_config():
+    """host.conf, parsed the way the shell side writes it."""
+    config = {"User": "", "NtfyServer": "https://ntfy.sh", "NtfyTopic": ""}
+    with open(CONFIG, encoding="utf-8") as handle:
+        for line in handle:
+            line = line.rstrip("\n")
+            if "=" in line and not line.startswith("#"):
+                key, value = line.split("=", 1)
+                config[key] = value
+    if not config["User"]:
+        raise ValueError("no User= in " + CONFIG)
+    return config
+
+
+def dm_config():
+    """The config file of the display manager in use, or None."""
+    if "MSW_DM_CONFIG" in os.environ:
+        return os.environ["MSW_DM_CONFIG"]
+    unit = os.path.basename(os.path.realpath("/etc/systemd/system/display-manager.service"))
+    return DISPLAY_MANAGERS.get(unit)
+
+
+# --- the [Autologin] section, edited line by line ----------------------------
+#
+# Only User= is touched. Every other line, comments included, stays as it is,
+# and with no Session= the display manager starts the session used last.
+
+def read_lines(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return handle.read().splitlines()
+    except FileNotFoundError:
+        return []
+
+
+def write_lines(path, lines):
+    try:
+        mode = os.stat(path).st_mode & 0o777
+    except FileNotFoundError:
+        mode = 0o644
+    temporary = path + ".msw"
+    with open(temporary, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+    os.chmod(temporary, mode)
+    os.replace(temporary, path)
+
+
+def find_user(lines):
+    """(index of the section header, index of its User= line), each or None."""
+    header = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("["):
+            if header is not None:
+                break
+            if stripped == SECTION:
+                header = index
+        elif header is not None and stripped.split("=", 1)[0].strip() == "User":
+            return header, index
+    return header, None
+
+
+def set_user(lines, user):
+    header, index = find_user(lines)
+    if index is not None:
+        lines[index] = "User=" + user
+    elif header is not None:
+        lines.insert(header + 1, "User=" + user)
+    else:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines += [SECTION, "User=" + user]
+
+
+def arm(path, user):
+    lines = read_lines(path)
+    if not os.path.exists(ARMED):
+        header, index = find_user(lines)
+        before = {
+            "path": path,
+            "existed": os.path.exists(path),
+            "section": header is not None,
+            "user": lines[index] if index is not None else None,
+        }
+        os.makedirs(STATEDIR, exist_ok=True)
+        with open(ARMED, "w", encoding="utf-8") as handle:
+            json.dump(before, handle)
+    set_user(lines, user)
+    write_lines(path, lines)
+    log("autologin set for %s in %s" % (user, path))
+
+
+def disarm():
+    try:
+        with open(ARMED, encoding="utf-8") as handle:
+            before = json.load(handle)
+    except (FileNotFoundError, ValueError):
+        return
+
+    path = before["path"]
+    if not before["existed"]:
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+    else:
+        lines = read_lines(path)
+        header, index = find_user(lines)
+        if index is not None:
+            if before["user"] is None:
+                del lines[index]
+            else:
+                lines[index] = before["user"]
+        # A section that was added for User= alone goes again, with the blank
+        # line in front of it.
+        if not before["section"] and header is not None and index == header + 1:
+            following = lines[header + 1:header + 2]
+            if not following or following[0].strip().startswith("["):
+                del lines[header]
+                if header and not lines[header - 1].strip():
+                    del lines[header - 1]
+        write_lines(path, lines)
+
+    os.unlink(ARMED)
+    log("autologin taken back out of %s" % path)
+
+
+# --- the login ---------------------------------------------------------------
+
+def logged_in(user):
+    if DRY_RUN:
+        return False
+    try:
+        result = subprocess.run(["loginctl", "show-user", user, "-p", "State", "--value"],
+                                capture_output=True, text=True, timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.stdout.strip() in ("active", "online")
+
+
+def restart_display_manager():
+    if DRY_RUN:
+        log("dry run: would restart display-manager.service")
+        return
+    subprocess.run(["systemctl", "restart", "display-manager.service"], timeout=60, check=True)
+
+
+def wait_for(check, timeout):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if check():
+            return True
+        time.sleep(2)
+    return False
+
+
+def stream_port_open():
+    try:
+        with socket.create_connection(("127.0.0.1", STREAM_PORT), timeout=2):
+            return True
+    except OSError:
+        return False
+
+
+def remember(result):
+    os.makedirs(STATEDIR, exist_ok=True)
+    with open(LAST, "w", encoding="utf-8") as handle:
+        handle.write("%d\t%s\n" % (time.time(), result))
+
+
+def notify(config, message):
+    if not config["NtfyTopic"]:
+        return
+    # JSON rather than headers, so umlauts survive the trip.
+    payload = json.dumps({
+        "topic": config["NtfyTopic"],
+        "title": socket.gethostname(),
+        "message": message,
+        "tags": ["desktop_computer"],
+    }).encode("utf-8")
+    request = urllib.request.Request(config["NtfyServer"].rstrip("/"), data=payload,
+                                     headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=15):
+            log("push sent through ntfy")
+    except Exception as error:  # noqa: BLE001 - a push must never fail the login
+        log("could not send the push: %s" % error)
+
+
+def log_in(config):
+    path = dm_config()
+    user = config["User"]
+    arm(path, user)
+    reply("OK")
+    try:
+        restart_display_manager()
+    except (OSError, subprocess.SubprocessError) as error:
+        log("restarting the display manager failed: %s" % error)
+        disarm()
+        remember("failed")
+        return 1
+
+    session = DRY_RUN or wait_for(lambda: logged_in(user), SESSION_TIMEOUT)
+    disarm()
+    remember("login" if session else "failed")
+    if not session:
+        log("no session for %s within %ss" % (user, SESSION_TIMEOUT))
+        notify(config, _("Booted, but logging in did not work."))
+    elif DRY_RUN or wait_for(stream_port_open, STREAM_TIMEOUT):
+        notify(config, _("Ready to stream."))
+    else:
+        notify(config, _("Logged in, but the stream port does not answer."))
+    return 0
+
+
+def handle():
+    config = read_config()
+    with open(SECRET, "rb") as handle:
+        secret = handle.read().strip()
+
+    nonce = secrets.token_hex(16)
+    reply("%s %s" % (GREETING, nonce))
+    signal.alarm(HANDSHAKE_TIMEOUT)
+    answer = sys.stdin.readline().strip()
+    signal.alarm(0)
+
+    expected = base64.b64encode(hmac.new(secret, nonce.encode("ascii"), hashlib.sha256).digest())
+    if not hmac.compare_digest(answer.encode("ascii", "replace"), expected):
+        reply("DENIED")
+        remember("denied")
+        log("turned away a Deck with the wrong secret")
+        return 0
+
+    if logged_in(config["User"]):
+        reply("ALREADY-LOGGED-IN")
+        remember("already")
+        log("%s is logged in already" % config["User"])
+        return 0
+
+    if dm_config() is None:
+        raise RuntimeError("no supported display manager")
+
+    log("logging %s in, once" % config["User"])
+    return log_in(config)
+
+
+def main(argv):
+    if argv == ["--disarm"]:
+        disarm()
+        return 0
+    if argv == ["--check"]:
+        path = dm_config()
+        if path is None:
+            return 1
+        print(path)
+        return 0
+    if argv:
+        print(__doc__.strip(), file=sys.stderr)
+        return 1
+
+    def on_alarm(_signum, _frame):
+        raise TimeoutError("the Deck did not answer in time")
+
+    signal.signal(signal.SIGALRM, on_alarm)
+    try:
+        return handle()
+    except TimeoutError as error:
+        log(str(error))
+        return 1
+    except Exception as error:  # noqa: BLE001 - the reply must not leak details
+        log("failed: %s" % error)
+        try:
+            reply("ERROR")
+        except OSError:
+            pass
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

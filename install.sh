@@ -1,248 +1,132 @@
 #!/usr/bin/env bash
 #
-# Guided setup for the MoonDeck SwitchBot wake-up script.
+# Installs moondeck-switchbot-wol for the Steam Deck, into ~/.local.
+#
+#   curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/install.sh | bash
+#   curl -fsSL .../install.sh | bash -s -- --uninstall
+#
+# SteamOS has no make and no package for this, so this does what
+# `make install PREFIX=~/.local` would, minus the PC's side. Its root file
+# system is replaced by every update, so the home is the only place that
+# stays. Run from a checkout it installs that checkout; piped from curl it
+# fetches the latest release.
+#
+# Copyright (C) 2026 Felitendo
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 set -euo pipefail
 
-RAW_BASE=${MOONDECK_RAW_BASE:-https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main}
-BOOTSTRAP_DIR=${MOONDECK_BOOTSTRAP_DIR:-}
-trap 'if [[ -n $BOOTSTRAP_DIR ]]; then rm -rf "$BOOTSTRAP_DIR"; fi' EXIT
+REPO="https://github.com/Felitendo/moondeck-switchbot-wol"
+API="https://api.github.com/repos/Felitendo/moondeck-switchbot-wol"
 
-SELF_PART=install.sh
-# Piping into bash makes standard input the script itself, which is where the
-# wizard needs to read the answers from. Fetch a real copy and hand over to it,
-# with standard input back on the terminal.
-if [[ $0 == bash || $0 == */bash ]]; then
-    command -v curl >/dev/null 2>&1 || {
-        printf 'curl is required\n' >&2
-        exit 1
-    }
-    [[ -n $BOOTSTRAP_DIR ]] || BOOTSTRAP_DIR=$(mktemp -d)
-    curl -fsSL "$RAW_BASE/$SELF_PART" -o "$BOOTSTRAP_DIR/entry.sh" || {
-        printf 'could not download %s\n' "$SELF_PART" >&2
-        exit 1
-    }
-    export MOONDECK_RAW_BASE="$RAW_BASE" MOONDECK_BOOTSTRAP_DIR="$BOOTSTRAP_DIR"
-    # a readable /dev/tty node does not mean it can be opened, only trying does
-    if (: </dev/tty) 2>/dev/null; then
-        exec bash "$BOOTSTRAP_DIR/entry.sh" "$@" </dev/tty
-    fi
-    exec bash "$BOOTSTRAP_DIR/entry.sh" "$@"
-fi
+PREFIX="$HOME/.local"
+BINDIR="$PREFIX/bin"
+LIBEXECDIR="$PREFIX/lib/moondeck-switchbot-wol"
+LIBDIR="$PREFIX/share/moondeck-switchbot-wol/lib"
+LOCALEDIR="$PREFIX/share/locale"
+CONFDIR="${XDG_CONFIG_HOME:-$HOME/.config}/moondeck-switchbot-wol"
+STATEDIR="${XDG_STATE_HOME:-$HOME/.local/state}/moondeck-switchbot-wol"
 
-# Fetch the pieces this script needs when it was run on its own, without the
-# rest of the repository next to it.
-bootstrap() {
-    command -v curl >/dev/null 2>&1 || {
-        printf 'curl is required to download the missing parts\n' >&2
-        exit 1
-    }
-    [[ -n $BOOTSTRAP_DIR ]] || BOOTSTRAP_DIR=$(mktemp -d)
-    local part
-    for part in "$@"; do
-        mkdir -p "$BOOTSTRAP_DIR/$(dirname "$part")"
-        curl -fsSL "$RAW_BASE/$part" -o "$BOOTSTRAP_DIR/$part" || {
-            printf 'could not download %s\n' "$part" >&2
-            exit 1
-        }
-    done
+say() { printf '%s\n' "$*"; }
+die() { printf 'moondeck-switchbot-wol: %s\n' "$*" >&2; exit 1; }
+
+# The newest release, or main while there is none.
+latest_ref() {
+	local tag
+	tag="$(curl -fsSL "$API/releases/latest" 2>/dev/null \
+		| python3 -c 'import json, sys; print(json.load(sys.stdin)["tag_name"])' 2>/dev/null)" || tag=''
+	printf '%s\n' "${tag:-main}"
 }
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-}")" 2>/dev/null && pwd) || SCRIPT_DIR=""
-if [[ -r ${SCRIPT_DIR:-}/lib/i18n.sh ]]; then
-    ROOT_DIR=$SCRIPT_DIR
-else
-    bootstrap lib/i18n.sh lib/ui.sh lib/switchbot.sh src/moondeck-switchbot-wol.sh
-    ROOT_DIR=$BOOTSTRAP_DIR
-fi
-
-# shellcheck source=lib/i18n.sh
-source "$ROOT_DIR/lib/i18n.sh"
-
-for arg in "$@"; do
-    case $arg in
-        --cli) MSB_FORCE_CLI=1 ;;
-        --help | -h)
-            t usage
-            exit 0
-            ;;
-        *)
-            t usage >&2
-            exit 1
-            ;;
-    esac
-done
-
-# shellcheck source=lib/ui.sh
-source "$ROOT_DIR/lib/ui.sh"
-# shellcheck source=lib/switchbot.sh
-source "$ROOT_DIR/lib/switchbot.sh"
-
-TITLE=$(t app_title)
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/moondeck-switchbot"
-CONFIG_FILE="$CONFIG_DIR/config"
-DEFAULT_TARGET="$HOME/moondeck-switchbot-wol.sh"
-SOURCE_SCRIPT="$ROOT_DIR/src/moondeck-switchbot-wol.sh"
-
-fail() {
-    ui_error "$TITLE" "$1"
-    exit 1
+# fetch <dir>
+# Unpacks the source into <dir> and prints where it ended up.
+fetch() {
+	local dir="$1" ref
+	ref="$(latest_ref)"
+	say "Downloading $ref..." >&2
+	curl -fsSL "$REPO/archive/$ref.tar.gz" | tar -xz -C "$dir" \
+		|| die "could not download $REPO/archive/$ref.tar.gz"
+	printf '%s\n' "$dir"/*/
 }
 
-abort() {
-    printf '%s\n' "$(t cancelled)" >&2
-    exit 1
+install_from() {
+	local src="$1" version f l
+
+	# Written down in the Makefile, see `make version`.
+	version="$(sed -n 's/^VERSION *?= *//p' "$src/Makefile")"
+	install -Dm755 "$src/src/moondeck-switchbot-wol" "$BINDIR/moondeck-switchbot-wol"
+	install -Dm755 "$src/src/wake" "$LIBEXECDIR/wake"
+	install -d "$LIBDIR"
+	install -m644 "$src"/src/lib/*.sh "$src"/src/lib/*.py "$LIBDIR/"
+
+	for f in "$BINDIR/moondeck-switchbot-wol" "$LIBEXECDIR/wake" "$LIBDIR"/*.sh; do
+		sed -i -e "s|@VERSION@|$version|g" \
+		       -e "s|@BINDIR@|$BINDIR|g" \
+		       -e "s|@LIBDIR@|$LIBDIR|g" \
+		       -e "s|@LIBEXECDIR@|$LIBEXECDIR|g" \
+		       -e "s|@LOCALEDIR@|$LOCALEDIR|g" "$f"
+	done
+
+	# Translations need msgfmt. Without it everything is in English.
+	if command -v msgfmt > /dev/null 2>&1; then
+		for f in "$src"/po/*.po; do
+			l="$(basename "$f" .po)"
+			mkdir -p "$LOCALEDIR/$l/LC_MESSAGES"
+			msgfmt -o "$LOCALEDIR/$l/LC_MESSAGES/moondeck-switchbot-wol.mo" "$f"
+		done
+	fi
 }
 
-for dependency in curl openssl python3; do
-    command -v "$dependency" >/dev/null 2>&1 || fail "$(t dep_missing "$dependency")"
-done
-[[ -r $SOURCE_SCRIPT ]] || fail "$(t write_failed "$SOURCE_SCRIPT")"
-
-ui_info "$TITLE" "$(t welcome)"
-
-# The host installer can put the whole setup into one line, so anything the
-# token already carries must not be asked again here.
-decode_token() {
-    printf '%s' "$1" | tr -d '[:space:]' | base64 -d 2>/dev/null | python3 -c '
-import json
-import sys
-
-raw = sys.stdin.read()
-if raw.startswith("1|"):
-    parts = raw.split("|")
-    data = dict(zip(("host", "port", "secret"), parts[1:4]))
-else:
-    try:
-        data = json.loads(raw)
-    except ValueError:
-        sys.exit(1)
-    if int(data.get("v", 0)) != 2:
-        sys.exit(1)
-if not data.get("secret"):
-    sys.exit(1)
-for key in ("host", "port", "secret", "sbToken", "sbSecret", "device", "command"):
-    if data.get(key):
-        print("%s\t%s" % (key, data[key]))
-'
+uninstall() {
+	# MoonDeck gets its own Wake-on-LAN back before the shim disappears.
+	if [[ -x $BINDIR/moondeck-switchbot-wol ]]; then
+		"$BINDIR/moondeck-switchbot-wol" disable || true
+	fi
+	rm -f "$BINDIR/moondeck-switchbot-wol"
+	rm -rf "$LIBEXECDIR" "$PREFIX/share/moondeck-switchbot-wol"
+	rm -f "$LOCALEDIR"/*/LC_MESSAGES/moondeck-switchbot-wol.mo
+	# The config holds the SwitchBot credentials, so it goes too.
+	rm -rf "$CONFDIR" "$STATEDIR"
+	say "Removed moondeck-switchbot-wol and its settings."
 }
 
-declare -A PAIRED=()
-if ui_yesno "$TITLE" "$(t token_ask)"; then
-    while true; do
-        pairing_token=$(ui_input "$TITLE" "$(t trigger_token)" "") || abort
-        [[ -n $pairing_token ]] || fail "$(t input_empty)"
-        PAIRED=()
-        while IFS=$'\t' read -r token_key token_value; do
-            PAIRED[$token_key]=$token_value
-        done < <(decode_token "$pairing_token")
-        ((${#PAIRED[@]} > 0)) && break
-        ui_error "$TITLE" "$(t trigger_bad_token)"
-    done
-fi
+main() {
+	local here='' tmp='' src cmd
 
-trigger_secret=${PAIRED[secret]:-}
-trigger_port=${PAIRED[port]:-58471}
-trigger_host=${PAIRED[host]:-}
-token=${PAIRED[sbToken]:-}
-secret=${PAIRED[sbSecret]:-}
-selected_device=${PAIRED[device]:-}
-selected_command=${PAIRED[command]:-press}
+	(( EUID != 0 )) || die "run this as your own user, not as root"
 
-if [[ -z $token || -z $secret || -z $selected_device ]]; then
-    ui_info "$TITLE" "$(t creds_intro "$CONFIG_FILE")"
+	if [[ ${1:-} == --uninstall ]]; then
+		uninstall
+		return
+	fi
 
-    while true; do
-        token=$(ui_password "$TITLE" "$(t ask_token)") || abort
-        [[ -n $token ]] || fail "$(t input_empty)"
-        secret=$(ui_password "$TITLE" "$(t ask_secret)") || abort
-        [[ -n $secret ]] || fail "$(t input_empty)"
+	for cmd in curl tar python3; do
+		command -v "$cmd" > /dev/null 2>&1 || die "$cmd is missing"
+	done
 
-        response_file=$(mktemp)
-        if ! ui_progress_run "$(t fetching)" "$response_file" sb_curl "$token" "$secret" "/devices"; then
-            rm -f "$response_file"
-            ui_error "$TITLE" "$(t api_unreachable)"
-            continue
-        fi
-        response=$(cat "$response_file")
-        rm -f "$response_file"
+	# A checkout next to this script is installed as it is.
+	if [[ -n ${BASH_SOURCE[0]:-} && -f ${BASH_SOURCE[0]} ]]; then
+		here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+	fi
+	if [[ -n $here && -f $here/src/moondeck-switchbot-wol ]]; then
+		src="$here"
+	else
+		tmp="$(mktemp -d)"
+		src="$(fetch "$tmp")"
+	fi
 
-        mapfile -t lines < <(printf '%s' "$response" | sb_parse_devices)
-        if [[ ${lines[0]:-} == ERR* ]]; then
-            IFS=$'\t' read -r _ status_code message <<<"${lines[0]}"
-            ui_error "$TITLE" "$(t api_error "$status_code" "$message")"
-            continue
-        fi
+	install_from "$src"
+	[[ -n $tmp ]] && rm -rf "$tmp"
+	say "Installed $BINDIR/moondeck-switchbot-wol"
 
-        devices=("${lines[@]:1}")
-        ((${#devices[@]} > 0)) || fail "$(t no_devices)"
-        break
-    done
-
-    choices=()
-    for line in "${devices[@]}"; do
-        IFS=$'\t' read -r device_id device_name device_type <<<"$line"
-        choices+=("$device_id" "$device_name ($device_type)")
-    done
-
-    selected_device=$(ui_choose "$TITLE" "$(t choose_device)" "${choices[@]}") || abort
-    [[ -n $selected_device ]] || abort
-
-    selected_command=$(ui_choose "$TITLE" "$(t ask_mode)" \
-        press "$(t mode_press)" \
-        turnOn "$(t mode_switch)") || abort
-    [[ -n $selected_command ]] || abort
-fi
-
-target=$(ui_input "$TITLE" "$(t ask_path)" "$DEFAULT_TARGET") || abort
-[[ -n $target ]] || abort
-target=${target/#\~/$HOME}
-
-if [[ -e $target ]]; then
-    ui_yesno "$TITLE" "$(t path_exists "$target")" || abort
-fi
-
-install -D -m 600 /dev/null "$CONFIG_FILE" 2>/dev/null || fail "$(t write_failed "$CONFIG_FILE")"
-chmod 700 "$CONFIG_DIR"
-{
-    printf '# moondeck-switchbot-wol configuration\n'
-    printf '# Written by install.sh - this file holds API credentials, keep it private.\n'
-    printf 'TOKEN=%q\n' "$token"
-    printf 'SECRET=%q\n' "$secret"
-    printf 'DEVICE_ID=%q\n' "$selected_device"
-    printf 'COMMAND=%q\n' "$selected_command"
-    printf '# Seconds in which no second button press is sent, 0 disables the cooldown.\n'
-    printf 'COOLDOWN=180\n'
-    printf '# Where install.sh put the script, used by uninstall.sh.\n'
-    printf 'INSTALL_PATH=%q\n' "$target"
-    if [[ -n $trigger_secret ]]; then
-        printf '# One-shot login trigger, see host/install-host.sh on the host.\n'
-        printf 'LOGIN_TRIGGER_SECRET=%q\n' "$trigger_secret"
-        printf 'LOGIN_TRIGGER_PORT=%q\n' "${trigger_port:-58471}"
-        printf 'LOGIN_TRIGGER_HOST=%q\n' "$trigger_host"
-        printf '# Seconds to keep knocking while the host boots.\n'
-        printf 'LOGIN_TRIGGER_TIMEOUT=240\n'
-    fi
-} >"$CONFIG_FILE"
-
-mkdir -p "$(dirname "$target")"
-sed "s|@CONFIG_PATH@|$CONFIG_FILE|" "$SOURCE_SCRIPT" >"$target" || fail "$(t write_failed "$target")"
-chmod 755 "$target"
-
-# The script logs to stdout and curl complains on stderr, the dialog should
-# show both.
-run_wake_test() {
-    "$target" --test 2>&1
+	# Straight into the menu, with the keyboard rather than the pipe this
+	# script came through.
+	if (: < /dev/tty) 2> /dev/null; then
+		exec "$BINDIR/moondeck-switchbot-wol" < /dev/tty > /dev/tty
+	fi
+	say "Run it with: $BINDIR/moondeck-switchbot-wol"
 }
 
-if ui_yesno "$TITLE" "$(t test_ask)"; then
-    test_output=$(mktemp)
-    if ui_progress_run "$(t testing)" "$test_output" run_wake_test; then
-        ui_info "$TITLE" "$(t test_ok)"
-    else
-        ui_error "$TITLE" "$(t test_failed "$(cat "$test_output")")"
-    fi
-    rm -f "$test_output"
-fi
-
-ui_info "$TITLE" "$(t done "$target")"
+# Everything is in a function, so bash has read the whole script before it
+# runs any of it, even when it comes through a pipe.
+main "$@"

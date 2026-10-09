@@ -1,0 +1,33 @@
+{
+    "version": 30,
+    "currentHostId": "4c1d6f0e-0d0a-4b8c-9f43-6e2c1a7b9d11",
+    "hostSettings": {
+        "4c1d6f0e-0d0a-4b8c-9f43-6e2c1a7b9d11": {
+            "hostInfoPort": 47989,
+            "address": "192.168.2.50",
+            "staticAddress": false,
+            "hostName": "gaming-pc",
+            "mac": "AA:BB:CC:DD:EE:FF",
+            "os": "Linux",
+            "runnerTimeouts": {
+                "buddyRequests": 5,
+                "servicePing": 5,
+                "initialConditions": 30,
+                "streamReadiness": 30,
+                "steamReadiness": 60,
+                "userSwitch": 30,
+                "appLaunch": 30,
+                "appLaunchStability": 15,
+                "streamEnd": 15,
+                "wakeOnLan": 60,
+                "steamLaunch": 60
+            },
+            "wolSettings": {
+                "useCustomWolExec": false,
+                "sendOnce": false,
+                "customWolExecPath": "",
+                "port": 9
+            }
+        }
+    }
+}

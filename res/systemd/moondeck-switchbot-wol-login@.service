@@ -1,17 +1,19 @@
 [Unit]
-Description=MoonDeck one-shot login trigger (%i)
-Documentation=https://github.com/Felitendo/moondeck-switchbot-wol
+Description=MoonDeck SwitchBot login trigger (%i)
+Documentation=man:moondeck-switchbot-wol(1)
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/lib/moondeck-login-agent
+ExecStart=@LIBEXECDIR@/login-agent
 StandardInput=socket
 StandardOutput=socket
 StandardError=journal
+StateDirectory=moondeck-switchbot-wol
+# A login waits for the session and then for Sunshine.
 TimeoutStartSec=180
 
-# The agent has to write /etc/plasmalogin.conf and restart the display
-# manager, so it stays root, but nothing beyond that is needed.
+# It writes the display manager's config and restarts it, so it stays root.
+# Nothing beyond that is needed.
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectHome=yes

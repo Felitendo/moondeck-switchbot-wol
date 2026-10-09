@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+#
+# moondeck-switchbot-wol: wake your PC from the Steam Deck with a SwitchBot
+#
+# MoonDeck wakes the PC with a Wake-on-LAN packet, which some boards, network
+# cards and BIOSes ignore. A SwitchBot pressing the power button always works.
+# MoonDeck can run a program instead of sending the packet, and this is it.
+#
+# Pressing the button only gets the PC to its login screen. So the same
+# program sets up a login trigger on the PC: the Deck proves that it did the
+# waking, and the PC logs in once.
+#
+# Copyright (C) 2026 Felitendo
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+set -uo pipefail
+
+MSW_LIBDIR="${MSW_LIBDIR:-@LIBDIR@}"
+
+for _mod in common config switchbot moondeck pairing wake host ui menu; do
+	# shellcheck source=/dev/null
+	if ! source "$MSW_LIBDIR/$_mod.sh"; then
+		printf 'moondeck-switchbot-wol: cannot load %s/%s.sh\n' "$MSW_LIBDIR" "$_mod" >&2
+		exit 14
+	fi
+done
+unset _mod
+
+# Run again by the wake-up for the part that waits, and through sudo.
+MSW_SELF="$(readlink -f -- "${BASH_SOURCE[0]}")"
+MSW_ARGV=("$@")
+
+# ---------------------------------------------------------------------------
+# The Deck
+# ---------------------------------------------------------------------------
+
+# The Deck's side lives in the user's home. As root it would set up root's
+# MoonDeck, which does not exist.
+msw_need_user() {
+	[[ $EUID -ne 0 || -n ${MSW_ALLOW_ROOT:-} ]] && return 0
+	msw_bad "$(msw_msg "Run this as your own user, not as root. Only the host commands need root.")"
+	exit 2
+}
+
+msw_do_enable() {
+	msw_config_load
+	if ! msw_switchbot_ready; then
+		msw_bad "$(msw_msg "The SwitchBot is not set up yet. Pair with the PC, or set it up by hand.")"
+		return 1
+	fi
+	if ! msw_moondeck_load; then
+		if [[ $MD_STATE == nohost ]]; then
+			msw_bad "$(msw_msg "MoonDeck has no PC yet. Add yours in MoonDeck first.")"
+		else
+			msw_bad "$(msw_msg "MoonDeck was not found. Install it, and add your PC in it.")"
+		fi
+		return 1
+	fi
+	if ! msw_moondeck_point; then
+		msw_bad "$(msw_msg "Could not change MoonDeck's settings.")"
+		return 1
+	fi
+
+	msw_ok "$(msw_msg "MoonDeck now wakes %s with the SwitchBot." "$MD_NAME")"
+	msw_note "$(msw_msg "MoonDeck reads this when Game Mode starts.")"
+	[[ -n $CFG_TRIGGER_SECRET ]] \
+		|| msw_note "$(msw_msg "The PC will stop at its login screen. Pair with the PC to get past it.")"
+}
+
+msw_do_disable() {
+	if ! msw_moondeck_restore; then
+		msw_bad "$(msw_msg "Could not put MoonDeck's settings back.")"
+		return 1
+	fi
+	msw_ok "$(msw_msg "MoonDeck sends its own Wake-on-LAN packet again.")"
+}
+
+# msw_do_pair [code]
+msw_do_pair() {
+	local code="${1:-}"
+
+	if [[ -z $code ]]; then
+		[[ -t 0 && -t 1 ]] || { msw_bad "$(msw_msg "No pairing code given.")"; return 1; }
+		msw_ui_begin
+		msw_ui_line "$(msw_msg "Pairing code:")" '' secret
+		msw_ui_end
+		code="$MSW_LINE"
+	fi
+
+	if ! msw_pair_decode "$code"; then
+		msw_bad "$(msw_msg "That is not a pairing code. It is the line starting with msw1: that the PC shows.")"
+		return 1
+	fi
+	if ! msw_pair_apply; then
+		msw_bad "$(msw_msg "Could not write %s." "$MSW_CONFIG")"
+		return 1
+	fi
+
+	msw_ok "$(msw_msg "Paired. The PC logs in when the Deck wakes it.")"
+	if msw_pair_has_switchbot; then
+		msw_ok "$(msw_msg "SwitchBot set up: %s." "${MSW_PAIR[DeviceName]:-${MSW_PAIR[Device]}}")"
+	else
+		msw_config_load
+		msw_switchbot_ready \
+			|| msw_note "$(msw_msg "The code has no SwitchBot setup. Set it up by hand next.")"
+	fi
+}
+
+msw_sb_save() {
+	if ! { msw_config_set Token "$SB_TOKEN" && msw_config_set Secret "$SB_SECRET" \
+		&& msw_config_set Device "$SB_DEVICE" && msw_config_set DeviceName "$SB_DEVICE_NAME" \
+		&& msw_config_set Command "$SB_COMMAND"; }; then
+		msw_bad "$(msw_msg "Could not write %s." "$MSW_CONFIG")"
+		return 1
+	fi
+	msw_ok "$(msw_msg "SwitchBot set up: %s." "$SB_DEVICE_NAME")"
+}
+
+msw_do_setup() {
+	if [[ ! -t 0 || ! -t 1 ]]; then
+		msw_bad "$(msw_msg "This asks questions, so it needs a terminal.")"
+		return 1
+	fi
+	msw_ui_switchbot "$(msw_msg "They stay on this Deck, in %s, and only ever go to SwitchBot." "$MSW_CONFIG")" \
+		|| return 1
+	printf '%s' "$MSW_CLEAR"
+	msw_sb_save
+}
+
+msw_do_press() {
+	msw_config_load
+	if ! msw_switchbot_ready; then
+		msw_bad "$(msw_msg "The SwitchBot is not set up yet. Pair with the PC, or set it up by hand.")"
+		return 1
+	fi
+	if ! msw_press; then
+		msw_bad "$MSW_SB_ERROR"
+		return 1
+	fi
+	msw_ok "$(msw_msg "The SwitchBot got the command.")"
+}
+
+msw_do_status() {
+	msw_head "  $MSW_PRETTY"
+	msw_ui_status
+	printf '\n'
+}
+
+msw_do_log() {
+	if [[ ! -s $MSW_LOG ]]; then
+		msw_note "$(msw_msg "No wake-ups yet.")"
+		return 0
+	fi
+	if [[ ${1:-} == -a || ${1:-} == --all ]]; then
+		cat -- "$MSW_LOG"
+	else
+		tail -n 30 -- "$MSW_LOG"
+	fi
+}
+
+# ---------------------------------------------------------------------------
+# Help and dispatch
+# ---------------------------------------------------------------------------
+
+msw_do_help() {
+	cat <<- EOF
+	$MSW_PRETTY $MSW_VERSION
+
+	$(msw_msg "Usage: moondeck-switchbot-wol [command]")
+
+	$(msw_msg "On the Steam Deck:")
+	  enable              $(msw_msg "Let MoonDeck wake the PC with the SwitchBot")
+	  disable             $(msw_msg "Give MoonDeck its own Wake-on-LAN back")
+	  pair [CODE]         $(msw_msg "Pair with the PC, with the code it shows")
+	  setup               $(msw_msg "Set up the SwitchBot by hand")
+	  press               $(msw_msg "Press the button now")
+	  status              $(msw_msg "Show what is set up")
+	  log [-a]            $(msw_msg "Show the last wake-ups")
+
+	$(msw_msg "On the PC that gets woken:")
+	  host                $(msw_msg "The menu for this end")
+	  host enable         $(msw_msg "Turn the login trigger on")
+	  host disable        $(msw_msg "Turn it off")
+	  host code [--new]   $(msw_msg "Show the pairing code for the Deck")
+	  host status         $(msw_msg "Show what is set up")
+
+	  -h, --help          $(msw_msg "Show this help")
+	  -V, --version       $(msw_msg "Show the version")
+
+	$(msw_msg "Without a command the menu is shown.")
+	EOF
+}
+
+msw_host_main() {
+	local cmd="${1:-}"
+	[[ $# -gt 0 ]] && shift
+
+	case $cmd in
+		enable)  msw_do_host_enable "$@" ;;
+		disable) msw_do_host_disable "$@" ;;
+		code)    msw_do_host_code "$@" ;;
+		status)  msw_do_host_status "$@" ;;
+		'')
+			if [[ -t 0 && -t 1 ]]; then
+				msw_ui_host_menu
+			else
+				msw_do_host_status
+			fi
+			;;
+		*)
+			msw_bad "$(msw_msg "Unknown command: %s" "host $cmd")"
+			return 1
+			;;
+	esac
+}
+
+main() {
+	local cmd="${1:-}"
+	[[ $# -gt 0 ]] && shift
+
+	case $cmd in
+		host) msw_host_main "$@"; return ;;
+		-h|--help|help) msw_do_help; return ;;
+		-V|--version) printf '%s %s\n' "$MSW_NAME" "$MSW_VERSION"; return ;;
+	esac
+
+	msw_need_user
+	case $cmd in
+		enable)  msw_do_enable "$@" ;;
+		disable) msw_do_disable "$@" ;;
+		pair)    msw_do_pair "$@" ;;
+		setup)   msw_do_setup "$@" ;;
+		press)   msw_do_press "$@" ;;
+		status)  msw_do_status "$@" ;;
+		log)     msw_do_log "$@" ;;
+		# What MoonDeck runs through the shim, and the part of it that waits.
+		wake)    msw_do_wake "$@" ;;
+		knock)   msw_do_knock "$@" ;;
+		'')
+			if [[ -t 0 && -t 1 ]]; then
+				msw_ui_menu
+			else
+				msw_do_status
+			fi
+			;;
+		*)
+			msw_bad "$(msw_msg "Unknown command: %s" "$cmd")"
+			printf '\n'
+			msw_do_help
+			return 1
+			;;
+	esac
+}
+
+main "$@"

@@ -1,0 +1,489 @@
+# Translation template for moondeck-switchbot-wol.
+# Copyright (C) 2026 Felitendo
+# This file is distributed under the same license as moondeck-switchbot-wol.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: moondeck-switchbot-wol 1.0.0\n"
+"Report-Msgid-Bugs-To: https://github.com/Felitendo/moondeck-switchbot-wol/"
+"issues\n"
+"POT-Creation-Date: 2026-10-09 13:10+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "ON"
+msgstr ""
+
+msgid "OFF"
+msgstr ""
+
+msgid "never"
+msgstr ""
+
+msgid "just now"
+msgstr ""
+
+msgid "1 minute ago"
+msgstr ""
+
+#, sh-printf-format
+msgid "%d minutes ago"
+msgstr ""
+
+msgid "1 hour ago"
+msgstr ""
+
+#, sh-printf-format
+msgid "%d hours ago"
+msgstr ""
+
+msgid "1 day ago"
+msgstr ""
+
+#, sh-printf-format
+msgid "%d days ago"
+msgstr ""
+
+msgid "This has to run as root."
+msgstr ""
+
+msgid "This display manager is not supported. Plasma Login and SDDM are."
+msgstr ""
+
+msgid "Which user should be logged in? Set it under Settings first."
+msgstr ""
+
+#, sh-printf-format
+msgid "Could not write %s."
+msgstr ""
+
+#, sh-printf-format
+msgid "Could not start %s."
+msgstr ""
+
+#, sh-printf-format
+msgid "Opened port %s in ufw, for %s only."
+msgstr ""
+
+#, sh-printf-format
+msgid "The login trigger is on. A wake-up from the Deck logs %s in."
+msgstr ""
+
+#, sh-printf-format
+msgid "Next, pair the Deck: sudo %s host code"
+msgstr ""
+
+msgid ""
+"The login trigger is off. The PC asks for the password again, however it is "
+"switched on."
+msgstr ""
+
+msgid "New secret made. A Deck that was paired before has to be paired again."
+msgstr ""
+
+#, sh-printf-format
+msgid "Unknown option: %s"
+msgstr ""
+
+#, sh-printf-format
+msgid "The login trigger is off. Turn it on with: sudo %s host enable"
+msgstr ""
+
+#, sh-printf-format
+msgid "%s, logged in"
+msgstr ""
+
+#, sh-printf-format
+msgid "%s, was logged in already"
+msgstr ""
+
+#, sh-printf-format
+msgid "%s, logging in did not work"
+msgstr ""
+
+#, sh-printf-format
+msgid "%s, turned away a Deck with the wrong secret"
+msgstr ""
+
+msgid "Login trigger"
+msgstr ""
+
+msgid "Logs in"
+msgstr ""
+
+msgid "nobody yet"
+msgstr ""
+
+msgid "Display manager"
+msgstr ""
+
+msgid "not supported (Plasma Login and SDDM are)"
+msgstr ""
+
+#, sh-printf-format
+msgid "(open in ufw for %s)"
+msgstr ""
+
+msgid "Port"
+msgstr ""
+
+msgid "Push when ready"
+msgstr ""
+
+msgid "Last wake-up"
+msgstr ""
+
+msgid "this PC"
+msgstr ""
+
+msgid "SwitchBot"
+msgstr ""
+
+msgid ""
+"This needs the token and the secret of your SwitchBot account. In the "
+"SwitchBot app, go to Profile, Preferences, tap App Version 10 times, then "
+"open Developer Options."
+msgstr ""
+
+msgid "Token:"
+msgstr ""
+
+msgid "Secret:"
+msgstr ""
+
+msgid "Asking SwitchBot for your devices..."
+msgstr ""
+
+msgid ""
+"Your account has no devices. A Bot shows up once it is paired with a "
+"SwitchBot hub and Cloud Services is on for it in the app."
+msgstr ""
+
+msgid "Nothing entered."
+msgstr ""
+
+msgid "Try again?"
+msgstr ""
+
+msgid "Which device presses the power button?"
+msgstr ""
+
+msgid "How is it set up in the SwitchBot app?"
+msgstr ""
+
+msgid "Press mode: the arm pushes and comes back (recommended)"
+msgstr ""
+
+msgid "Switch mode, or a smart plug: switch on"
+msgstr ""
+
+msgid "(none)"
+msgstr ""
+
+msgid "Up/Down: select, Enter: change, Esc: back"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+#, sh-printf-format
+msgid "%s seconds"
+msgstr ""
+
+msgid "Make a new secret? The Deck has to be paired again."
+msgstr ""
+
+msgid "SwitchBot wake-up"
+msgstr ""
+
+msgid "not set up"
+msgstr ""
+
+msgid "MoonDeck"
+msgstr ""
+
+msgid "no PC added yet"
+msgstr ""
+
+msgid "not found"
+msgstr ""
+
+msgid "Login on the PC"
+msgstr ""
+
+msgid "paired"
+msgstr ""
+
+msgid "not paired"
+msgstr ""
+
+msgid "Last press"
+msgstr ""
+
+msgid "Pair with the PC"
+msgstr ""
+
+msgid "On the PC, run this and press 2:"
+msgstr ""
+
+msgid ""
+"Copy the line that starts with msw1: and paste it here. In Konsole, paste "
+"with Ctrl+Shift+V."
+msgstr ""
+
+msgid "Pairing code:"
+msgstr ""
+
+#, sh-printf-format
+msgid "They stay on this Deck, in %s, and only ever go to SwitchBot."
+msgstr ""
+
+msgid ""
+"First the SwitchBot. A pairing code from the PC carries all of it, so "
+"nothing has to be typed here."
+msgstr ""
+
+msgid "Paste a pairing code from the PC"
+msgstr ""
+
+msgid "Set up the SwitchBot by hand"
+msgstr ""
+
+msgid ""
+"A second press switches the PC off again. MoonDeck cannot press twice within "
+"this time."
+msgstr ""
+
+msgid "Press again after"
+msgstr ""
+
+msgid "How long the Deck waits for the PC to boot, to log it in."
+msgstr ""
+
+msgid "Wait for the PC"
+msgstr ""
+
+msgid "Turn SwitchBot wake-up on or off"
+msgstr ""
+
+msgid "Press the button now"
+msgstr ""
+
+msgid "Quit"
+msgstr ""
+
+msgid "The SwitchBot really presses the button. Go ahead?"
+msgstr ""
+
+msgid "Pairing code"
+msgstr ""
+
+msgid ""
+"The code can carry the SwitchBot setup too. Then nothing has to be typed on "
+"the Deck. The credentials are not kept on this PC, they only go into the "
+"code."
+msgstr ""
+
+msgid "Put the SwitchBot setup into the code?"
+msgstr ""
+
+msgid "They are not kept on this PC. They only go into the code."
+msgstr ""
+
+#, sh-printf-format
+msgid "On the Deck, run %s and press 2. Then paste this line:"
+msgstr ""
+
+msgid "It holds the secret of the login trigger. Keep it to yourself."
+msgstr ""
+
+msgid "The user this PC logs in after a wake-up from the Deck."
+msgstr ""
+
+msgid "Where the login trigger listens. After a change, pair the Deck again."
+msgstr ""
+
+msgid "Push topic"
+msgstr ""
+
+msgid ""
+"Sends a push through ntfy once the PC is ready. Anyone who knows the topic "
+"can read along, so pick one nobody guesses. Empty turns it off."
+msgstr ""
+
+msgid "Any ntfy server works, your own too."
+msgstr ""
+
+msgid "Push server"
+msgstr ""
+
+msgid "Secret"
+msgstr ""
+
+msgid ""
+"Shared with the Deck through the pairing code. A new one turns away every "
+"Deck paired before."
+msgstr ""
+
+msgid "Turn the login trigger on or off"
+msgstr ""
+
+msgid "Pairing code for the Deck"
+msgstr ""
+
+#, sh-printf-format
+msgid "Could not reach the SwitchBot API: %s"
+msgstr ""
+
+#, sh-printf-format
+msgid "The SwitchBot API said no: %s (status %s)"
+msgstr ""
+
+msgid "The SwitchBot helper failed."
+msgstr ""
+
+msgid "switch on"
+msgstr ""
+
+msgid "press"
+msgstr ""
+
+msgid "Press any key to continue..."
+msgstr ""
+
+msgid "[y/N]"
+msgstr ""
+
+#, sh-printf-format
+msgid "%d characters"
+msgstr ""
+
+msgid "Up/Down: select, Enter: choose, Esc: back"
+msgstr ""
+
+msgid "One moment..."
+msgstr ""
+
+msgid ""
+"Run this as your own user, not as root. Only the host commands need root."
+msgstr ""
+
+msgid ""
+"The SwitchBot is not set up yet. Pair with the PC, or set it up by hand."
+msgstr ""
+
+msgid "MoonDeck has no PC yet. Add yours in MoonDeck first."
+msgstr ""
+
+msgid "MoonDeck was not found. Install it, and add your PC in it."
+msgstr ""
+
+msgid "Could not change MoonDeck's settings."
+msgstr ""
+
+#, sh-printf-format
+msgid "MoonDeck now wakes %s with the SwitchBot."
+msgstr ""
+
+msgid "MoonDeck reads this when Game Mode starts."
+msgstr ""
+
+msgid "The PC will stop at its login screen. Pair with the PC to get past it."
+msgstr ""
+
+msgid "Could not put MoonDeck's settings back."
+msgstr ""
+
+msgid "MoonDeck sends its own Wake-on-LAN packet again."
+msgstr ""
+
+msgid "No pairing code given."
+msgstr ""
+
+msgid ""
+"That is not a pairing code. It is the line starting with msw1: that the PC "
+"shows."
+msgstr ""
+
+msgid "Paired. The PC logs in when the Deck wakes it."
+msgstr ""
+
+#, sh-printf-format
+msgid "SwitchBot set up: %s."
+msgstr ""
+
+msgid "The code has no SwitchBot setup. Set it up by hand next."
+msgstr ""
+
+msgid "This asks questions, so it needs a terminal."
+msgstr ""
+
+msgid "The SwitchBot got the command."
+msgstr ""
+
+msgid "No wake-ups yet."
+msgstr ""
+
+msgid "Usage: moondeck-switchbot-wol [command]"
+msgstr ""
+
+msgid "On the Steam Deck:"
+msgstr ""
+
+msgid "Let MoonDeck wake the PC with the SwitchBot"
+msgstr ""
+
+msgid "Give MoonDeck its own Wake-on-LAN back"
+msgstr ""
+
+msgid "Pair with the PC, with the code it shows"
+msgstr ""
+
+msgid "Show what is set up"
+msgstr ""
+
+msgid "Show the last wake-ups"
+msgstr ""
+
+msgid "On the PC that gets woken:"
+msgstr ""
+
+msgid "The menu for this end"
+msgstr ""
+
+msgid "Turn the login trigger on"
+msgstr ""
+
+msgid "Turn it off"
+msgstr ""
+
+msgid "Show the pairing code for the Deck"
+msgstr ""
+
+msgid "Show this help"
+msgstr ""
+
+msgid "Show the version"
+msgstr ""
+
+msgid "Without a command the menu is shown."
+msgstr ""
+
+#, sh-printf-format
+msgid "Unknown command: %s"
+msgstr ""
+
+msgid "Booted, but logging in did not work."
+msgstr ""
+
+msgid "Ready to stream."
+msgstr ""
+
+msgid "Logged in, but the stream port does not answer."
+msgstr ""

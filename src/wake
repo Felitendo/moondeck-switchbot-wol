@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#
+# What MoonDeck runs instead of sending a magic packet. It passes HOSTNAME,
+# IP_ADDRESS, PORT and MAC, and those go on to `moondeck-switchbot-wol wake`.
+# A command of its own, because MoonDeck has no field for arguments.
+#
+# Copyright (C) 2026 Felitendo
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+exec "${MSW_BINDIR:-@BINDIR@}/moondeck-switchbot-wol" wake "$@"
