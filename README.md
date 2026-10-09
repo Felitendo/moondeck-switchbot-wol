@@ -1,105 +1,138 @@
-# moondeck-switchbot-wol
+<p align="center">
+  <img width="200" src="res/moondeck-switchbot-wol.svg" alt="moondeck-switchbot-wol">
+</p>
 
-Wake your gaming PC from the Steam Deck with a [SwitchBot](https://www.switch-bot.com/) instead of Wake-on-LAN.
+<h1 align="center">moondeck-switchbot-wol</h1>
 
-[MoonDeck](https://github.com/FrogTheFrog/moondeck) can call a custom executable in place of sending a magic packet. This repository ships that executable: it asks the SwitchBot cloud to physically push the power button of your host PC. Useful when the mainboard, the NIC or the BIOS refuses to do Wake-on-LAN properly, and the button is the only thing that reliably works.
+<h3 align="center">Wake your PC from the Steam Deck with a SwitchBot.</h3>
 
-The installer is a small wizard — it explains where to find your API credentials, fetches your device list and lets you pick the right SwitchBot from a list.
+<p align="center">
+  For <a href="https://github.com/FrogTheFrog/moondeck">MoonDeck</a>, when Wake-on-LAN does not work. And the PC logs in on its own, but only for the Deck.
+</p>
 
-## Requirements
+<h5 align="center">
+  <a href="#install">Install</a> |
+  <a href="#how-to-use">How to use</a> |
+  <a href="https://github.com/Felitendo/moondeck-switchbot-wol/issues">Report a bug</a>
+</h5>
 
-- A SwitchBot Bot mounted on the power button of the host PC
-- A SwitchBot Hub (Hub Mini, Hub 2, …) — the Bot itself is Bluetooth only, the cloud API can only reach it through a hub
-- **Cloud Services** enabled for the Bot in the SwitchBot app
-- `curl`, `openssl` and `python3` on the Steam Deck (all present on SteamOS)
+<p align="center">
+  <a href="https://ko-fi.com/felitendo"><img src="https://storage.ko-fi.com/cdn/kofi5.png?v=6" alt="Buy me a coffee on Ko-fi" height="48"></a>
+</p>
 
 ## Install
 
-Run this in desktop mode on the Steam Deck:
+You need a SwitchBot Bot on the power button, and a SwitchBot hub with **Cloud Services** on for
+the Bot.
+
+<details>
+<summary><b>Steam Deck</b></summary>
+
+In Desktop Mode, open Konsole:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/install.sh | bash
 ```
 
-The Installer will walk you through everything you need to know.
+</details>
 
-
-## Optional (recommended): log in automatically, but only for wake-ups from the Deck
-
-Pressing the power button gets you as far as the login screen. Sunshine only
-starts once a session exists, so something has to log in — but switching on
-autologin would also let anyone who walks up to the machine straight into your
-desktop.
-
-The trigger in `host/` solves that. The host cannot tell who pressed its power
-button, so the proof comes from the Deck afterwards:
-
-1. The Deck presses the SwitchBot as usual
-2. The host boots to its normal login screen and asks for a password
-3. In the background the Deck keeps knocking until the host answers, then
-   proves it caused the wake-up with a challenge and response
-4. The host logs the configured user in **once** and immediately puts the
-   password prompt back
-
-
-Install on the host PC:
+<details>
+<summary><b>PC</b> that gets woken</summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh | bash
+git clone https://github.com/Felitendo/moondeck-switchbot-wol.git
+cd moondeck-switchbot-wol
+make && sudo make install
 ```
 
-It asks which user and session to log in, generates the secret, installs a
-socket-activated systemd service and, if `ufw` is active, opens the port for
-your local subnet only. It also offers to take the SwitchBot side off your
-hands: enter the API credentials here, pick the device from the list it
-fetches, and all of it goes into the pairing token as well. Nothing of that is
-stored on the host — it only travels inside the token.
+Optional: `msgfmt` for translations, `scdoc` for the man page.
 
-At the end it hands you that token — one line carrying the port, the trigger
-secret, the host address and, if you said yes, the SwitchBot setup. On the Deck
-you then answer yes to the very first question, paste it, and the wizard skips
-everything the token already knows.
+</details>
 
-An existing installation can hand out its token again at any time, without
-changing anything:
+## How to use
+
+On the PC:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh | bash -s -- --token
+moondeck-switchbot-wol host
 ```
 
-Remove all of it again with:
+<p align="center">
+  <img src="res/screenshots/host.png" alt="The menu on the PC in Konsole: login trigger on, logs in alex" width="620">
+</p>
+
+Press **1** to turn the login trigger on, then **2** for the pairing code. Say yes to the SwitchBot
+question, and the code carries everything.
+
+On the Deck, the installer opens the menu. Later it is `~/.local/bin/moondeck-switchbot-wol`.
+
+<p align="center">
+  <img src="res/screenshots/menu.png" alt="The menu on the Deck in Konsole: SwitchBot wake-up on, MoonDeck wakes gaming-pc" width="620">
+</p>
+
+Press **1** and paste the code. Then switch to Game Mode. MoonDeck wakes your PC _✨just like
+that✨_.
+
+## More
+
+<details>
+<summary>How it works</summary>
+
+| | |
+|---|---|
+| Wake-up | MoonDeck runs this instead of sending a magic packet. It asks the SwitchBot cloud to press the button. |
+| MoonDeck | `enable` sets it up for you: this program, one wake-up only (a second press turns the PC off), and 3 minutes to boot. `disable` puts back what was there. |
+| Login | The Deck proves that it woke the PC, with a secret that never goes over the network. The PC logs you in once. Switched on by hand, it still asks for the password. |
+| Address | The Deck uses the address MoonDeck has for the PC, so a new one from your router changes nothing. |
+| Push | Optional: a push through [ntfy](https://ntfy.sh) once the PC is ready to stream. |
+
+The login works with Plasma Login and SDDM.
+
+</details>
+
+<details>
+<summary>Commands</summary>
+
+| | |
+|---|---|
+| `moondeck-switchbot-wol` | The menu on the Deck |
+| `… enable` | Let MoonDeck use the SwitchBot |
+| `… disable` | Give MoonDeck its Wake-on-LAN back |
+| `… pair CODE` | Pair with the PC |
+| `… press` | Press the button now |
+| `… log` | The last wake-ups |
+| `moondeck-switchbot-wol host` | The menu on the PC |
+| `… host enable` | Turn the login trigger on |
+| `… host disable` | Turn it off |
+| `… host code` | The pairing code |
+
+</details>
+
+<details>
+<summary>Help</summary>
+
+- **The device list is empty.** Pair the Bot with a hub and turn on **Cloud Services** for it in the
+  SwitchBot app.
+- **The Bot clicks, but the PC stays off.** Check that the arm reaches the button, and the battery.
+- **MoonDeck says the wake-up failed.** `moondeck-switchbot-wol log` says why.
+- **The PC stays at its login screen.** The log on the Deck says what the PC answered.
+  `journalctl -u 'moondeck-switchbot-wol-login@*'` shows the PC's side.
+- **A password window pops up after the login.** Your keyring is unlocked with your password, and
+  nobody typed it. Remove the keyring's password, or start the app with `--password-store=basic`.
+
+</details>
+
+<details>
+<summary>Uninstall</summary>
+
+On the Deck:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/host/install-host.sh | bash -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/install.sh | bash -s -- --uninstall
 ```
 
-### Getting told when the host is ready
+On the PC: `sudo moondeck-switchbot-wol host disable`, then `sudo make uninstall`.
 
-The host installer can optionally send a push through [ntfy](https://ntfy.sh)
-when the wake-up is done.
+</details>
 
-The server defaults to `https://ntfy.sh`, any self-hosted instance works just as
-well, and leaving the topic empty keeps the whole thing off. Pick a topic name
-nobody can guess: on a public server, knowing the topic is enough to read your
-notifications and to post into them.
-
-This only covers wake-ups that went through the trigger. A machine switched on
-by hand never runs the agent and therefore never reports in.
-
-
-## Troubleshooting
-
-- **The device list is empty.** The Bot needs to be paired with a hub and have *Cloud Services* switched on in the app.
-- **The Bot clicks but the PC does not start.** That is a mounting problem, not a software one — check that the arm actually reaches the button and that the Bot's battery is not empty.
-- **MoonDeck reports a failed wake-up.** Check `/tmp/moondeck-switchbot-<uid>.log`, it records every invocation and the raw API response. You can also run the script by hand with `--test`.
-- **MoonDeck gives up before the PC has booted.** Raise the timeouts in MoonDeck's Buddy and Runner settings. A cold boot takes far longer than waking from sleep, and the defaults are tuned for the latter.
-- **Nothing happens on the second launch attempt.** That is the cooldown doing its job. Lower or disable `COOLDOWN` if you really want every attempt to press.
-- **The host boots but stays on the login screen.** Check the same log on the Deck: it records whether the trigger was handed off and what the host answered. `DENIED` means the secret does not match, no answer at all means the port is not reachable — `journalctl -u 'moondeck-login-agent@*'` on the host shows its side.
-
-## Uninstall
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Felitendo/moondeck-switchbot-wol/main/uninstall.sh | bash
-```
-
-Removes the script and offers to delete the stored credentials. Remember to switch *Use custom WOL executable* back off in MoonDeck.
+GPL-3.0-or-later.
