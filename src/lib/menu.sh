@@ -184,11 +184,78 @@ msw_ui_status() {
 	msw_row "$(msw_msg "Last press")" "$(msw_time_ago "$(msw_state_read last_press)")"
 }
 
+# msw_ui_pair
+# Waits for the PC to find this Deck, and saves what it sends. Returns 0 once
+# paired.
 msw_ui_pair() {
-	msw_ui_screen "$(msw_msg "Pair with the PC")"
+	local title rc=1 digits address name
+
+	title="$(msw_msg "Pair with the PC")"
+	msw_ui_screen "$title"
 	msw_ui_text "$(msw_msg "On the PC, run this and press 2:")"
 	printf '\n    %s\n\n' "$MSW_C_BOLD$MSW_NAME host$MSW_C_RESET"
-	msw_ui_text "$(msw_msg "Copy the line that starts with msw1: and paste it here. In Konsole, paste with Ctrl+Shift+V.")"
+	msw_ui_text "$(msw_msg "The PC finds this Deck on its own.")"
+	printf '\n  %s\n\n  %s\n' "$(msw_msg "Waiting for the PC...")" \
+		"$(msw_dim "$(msw_msg "c: paste a pairing code instead, Esc: back")")"
+
+	msw_pair_start listen "$MSW_PAIR_PORT" "$MSW_PAIR_WAIT"
+	while msw_pair_next; do
+		case $MSW_PAIR_EVENT in
+			KEY)
+				case $MSW_KEY in
+					c|C)
+						msw_pair_stop
+						msw_ui_pair_code
+						return
+						;;
+					escape|q|Q) break ;;
+				esac
+				;;
+			PEER)
+				read -r digits address name <<< "$MSW_PAIR_ARGS"
+				msw_ui_screen "$title"
+				msw_ui_text "$(msw_msg "%s (%s) wants to pair. It shows a code too:" "$name" "$address")"
+				msw_ui_digits "$digits"
+				if ! msw_ui_yesno "$(msw_msg "Is it the same code?")"; then
+					# The PC hears so before pair.py is done.
+					msw_pair_answer no
+					msw_ui_bad "$(msw_msg "Not paired.")"
+					continue
+				fi
+				msw_pair_answer yes
+				printf '\n  %s\n' "$(msw_dim "$(msw_msg "Waiting for the PC...")")"
+				;;
+			DATA)
+				if msw_ui_run msw_do_pair "$MSW_PAIR_ARGS"; then
+					msw_pair_answer ok
+					rc=0
+				else
+					msw_pair_answer fail
+				fi
+				;;
+			DONE) break ;;
+			CANCELLED)
+				msw_ui_bad "$(msw_msg "The PC said no.")"
+				break
+				;;
+			TIMEOUT)
+				msw_ui_bad "$(msw_msg "No PC came in %s minutes." "$(( MSW_PAIR_WAIT / 60 ))")"
+				break
+				;;
+			*)
+				msw_ui_bad "$(msw_msg "Pairing did not work: %s" "${MSW_PAIR_ARGS:-$MSW_PAIR_EVENT}")"
+				break
+				;;
+		esac
+	done
+	msw_pair_stop
+	return "$rc"
+}
+
+# For a PC that cannot reach the Deck, like on a guest network.
+msw_ui_pair_code() {
+	msw_ui_screen "$(msw_msg "Pair with a code")"
+	msw_ui_text "$(msw_msg "When the PC does not find this Deck, it shows a pairing code. Copy the line that starts with msw1: and paste it here. In Konsole, paste with Ctrl+Shift+V.")"
 	msw_ui_line "$(msw_msg "Pairing code:")" '' secret || return 1
 	msw_ui_run msw_do_pair "$MSW_LINE"
 }
@@ -213,8 +280,8 @@ msw_ui_toggle() {
 
 	if ! msw_switchbot_ready; then
 		title="$(msw_msg "SwitchBot wake-up")"
-		msw_ui_pick "$title" "$(msw_msg "First the SwitchBot. A pairing code from the PC carries all of it, so nothing has to be typed here.")" \
-			pair  "$(msw_msg "Paste a pairing code from the PC")" \
+		msw_ui_pick "$title" "$(msw_msg "First the SwitchBot. The PC can send all of it when pairing, so nothing has to be typed here.")" \
+			pair  "$(msw_msg "Pair with the PC")" \
 			setup "$(msw_msg "Set up the SwitchBot by hand")" \
 			|| return 0
 		case $MSW_PICKED in
@@ -278,24 +345,116 @@ msw_ui_menu() {
 # The PC
 # ---------------------------------------------------------------------------
 
-msw_ui_host_code() {
-	local code
+# msw_ui_host_pair
+# Finds the Deck on this network and sends it the pairing code. Shows the code
+# instead when there is no Deck to be found.
+msw_ui_host_pair() {
+	local title code line address name digits
+	local -a found=() choices=() targets=()
 
+	title="$(msw_msg "Pair with the Deck")"
 	msw_host_config_load
-	msw_host_code_pairs || { MSW_UI_MSG="$(msw_bad "$(msw_msg "Could not write %s." "$MSW_HOST_SECRET")" 2>&1)"; return 1; }
+	msw_host_code_pairs || { msw_ui_bad "$(msw_msg "Could not write %s." "$MSW_HOST_SECRET")"; return 1; }
 
-	msw_ui_screen "$(msw_msg "Pairing code")"
-	msw_ui_text "$(msw_msg "The code can carry the SwitchBot setup too. Then nothing has to be typed on the Deck. The credentials are not kept on this PC, they only go into the code.")"
-	if msw_ui_yesno "$(msw_msg "Put the SwitchBot setup into the code?")"; then
-		msw_ui_switchbot "$(msw_msg "They are not kept on this PC. They only go into the code.")" || return 1
+	msw_ui_screen "$title"
+	msw_ui_text "$(msw_msg "This PC can send the SwitchBot setup to the Deck too. Then nothing has to be typed there. The credentials are not kept on this PC.")"
+	if msw_ui_yesno "$(msw_msg "Send the SwitchBot setup too?")"; then
+		msw_ui_switchbot "$(msw_msg "They are not kept on this PC. They only go to the Deck.")" || return 1
 		MSW_HOST_PAIRS+=("Token=$SB_TOKEN" "Secret=$SB_SECRET" "Device=$SB_DEVICE"
 			"DeviceName=$SB_DEVICE_NAME" "Command=$SB_COMMAND")
 	fi
 	code="$(msw_pair_encode "${MSW_HOST_PAIRS[@]}")"
 
+	# Looks until a Deck waits, or there is no point any more.
+	while true; do
+		msw_ui_screen "$title"
+		msw_ui_text "$(msw_msg "On the Deck, open the menu and press 2. This PC finds it on its own.")"
+		printf '\n  %s\n\n  %s\n' "$(msw_msg "Looking for the Deck...")" "$(msw_dim "$(msw_msg "Esc: back")")"
+
+		# The tests set MSW_PAIR_TARGETS, to look on this machine only.
+		read -ra targets <<< "${MSW_PAIR_TARGETS:-$(msw_host_address)}"
+		found=()
+		msw_pair_start scan "$MSW_PAIR_PORT" "$MSW_PAIR_WAIT" "${targets[@]}"
+		while msw_pair_next; do
+			case $MSW_PAIR_EVENT in
+				FOUND) found+=("$MSW_PAIR_ARGS") ;;
+				KEY) [[ $MSW_KEY == escape || $MSW_KEY == [qQ] ]] && break ;;
+				*) break ;;
+			esac
+		done
+		msw_pair_stop
+		[[ $MSW_PAIR_EVENT == KEY ]] && return 1
+		(( ${#found[@]} )) && break
+
+		msw_ui_pick "$title" "$(msw_msg "No Deck found. Both have to be on the same network.")" \
+			again "$(msw_msg "Look again")" \
+			code  "$(msw_msg "Show a pairing code instead")" \
+			|| return 1
+		if [[ $MSW_PICKED == code ]]; then
+			msw_ui_host_code "$code"
+			return
+		fi
+	done
+
+	line="${found[0]}"
+	if (( ${#found[@]} > 1 )); then
+		for line in "${found[@]}"; do
+			choices+=("$line" "${line#* } $(msw_dim "(${line%% *})")")
+		done
+		msw_ui_pick "$title" "$(msw_msg "Which Deck?")" "${choices[@]}" || return 1
+		line="$MSW_PICKED"
+	fi
+	address="${line%% *}" name="${line#* }"
+
+	msw_ui_screen "$title"
+	printf '  %s\n' "$(msw_dim "$(msw_msg "One moment...")")"
+	MSW_PAIR_CODE="$code"
+	msw_pair_start send "$address" "$MSW_PAIR_PORT"
+	MSW_PAIR_CODE=''
+
+	while msw_pair_next; do
+		case $MSW_PAIR_EVENT in
+			KEY) [[ $MSW_KEY == escape || $MSW_KEY == [qQ] ]] && break ;;
+			PEER)
+				read -r digits _ <<< "$MSW_PAIR_ARGS"
+				msw_ui_screen "$title"
+				msw_ui_text "$(msw_msg "Found %s (%s). It shows a code too:" "$name" "$address")"
+				msw_ui_digits "$digits"
+				if ! msw_ui_yesno "$(msw_msg "Is it the same code?")"; then
+					msw_pair_answer no
+					msw_ui_bad "$(msw_msg "Not paired.")"
+					break
+				fi
+				msw_pair_answer yes
+				printf '\n  %s\n' "$(msw_dim "$(msw_msg "Now say yes on the Deck too.")")"
+				;;
+			OK)
+				msw_ui_ok "$(msw_msg "Paired with %s. It logs this PC in when it wakes it." "$name")"
+				break
+				;;
+			NO)
+				msw_ui_bad "$(msw_msg "The Deck said no.")"
+				break
+				;;
+			ERROR)
+				msw_ui_bad "$(msw_msg "The Deck could not save it.")"
+				break
+				;;
+			*)
+				msw_ui_bad "$(msw_msg "Pairing did not work: %s" "${MSW_PAIR_ARGS:-$MSW_PAIR_EVENT}")"
+				break
+				;;
+		esac
+	done
+	msw_pair_stop
+	[[ $MSW_PAIR_EVENT == OK ]]
+}
+
+# msw_ui_host_code <code>
+msw_ui_host_code() {
 	msw_ui_screen "$(msw_msg "Pairing code")"
-	msw_ui_text "$(msw_msg "On the Deck, run %s and press 2. Then paste this line:" "$MSW_NAME")"
-	printf '\n%s\n\n' "$code"
+	msw_ui_text "$(msw_msg "On the Deck, open the menu, press 2 and then c. Then paste this line:")"
+	printf '\n%s\n\n' "$1"
 	msw_ui_text "$(msw_msg "It holds the secret of the login trigger. Keep it to yourself.")"
 	msw_ui_pause
 }
@@ -308,7 +467,7 @@ msw_ui_host_settings() {
 		"Port|port|$MSW_DEFAULT_PORT|$(msw_msg "Port")|$(msw_msg "Where the login trigger listens. After a change, pair the Deck again.")"
 		"NtfyTopic|text||$(msw_msg "Push topic")|$(msw_msg "Sends a push through ntfy once the PC is ready. Anyone who knows the topic can read along, so pick one nobody guesses. Empty turns it off.")"
 		"NtfyServer|text|https://ntfy.sh|$(msw_msg "Push server")|$(msw_msg "Any ntfy server works, your own too.")"
-		"Secret|secret||$(msw_msg "Secret")|$(msw_msg "Shared with the Deck through the pairing code. A new one turns away every Deck paired before.")"
+		"Secret|secret||$(msw_msg "Secret")|$(msw_msg "Shared with the Deck when pairing. A new one turns away every Deck paired before.")"
 	)
 	msw_ui_settings "$MSW_HOST_CONFIG" msw_host_config_set "${MSW_HOST_SETTINGS[@]}"
 }
@@ -324,7 +483,7 @@ msw_ui_host_menu() {
 		printf '\n'
 		msw_ui_show_msg
 		printf '  [1] %s\n' "$(msw_msg "Turn the login trigger on or off")"
-		printf '  [2] %s\n' "$(msw_msg "Pairing code for the Deck")"
+		printf '  [2] %s\n' "$(msw_msg "Pair with the Deck")"
 		printf '  [3] %s\n' "$(msw_msg "Settings")"
 		printf '  [q] %s\n' "$(msw_msg "Quit")"
 		printf '\n  > '
@@ -338,7 +497,7 @@ msw_ui_host_menu() {
 					msw_ui_run msw_do_host_enable
 				fi
 				;;
-			2) msw_ui_host_code ;;
+			2) msw_ui_host_pair ;;
 			3)
 				# A new user or port only counts once the trigger is set up again.
 				msw_ui_host_settings && msw_host_on && msw_ui_run msw_do_host_enable

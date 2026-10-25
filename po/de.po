@@ -5,8 +5,9 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: moondeck-switchbot-wol 1.0.0\n"
-"Report-Msgid-Bugs-To: https://github.com/Felitendo/moondeck-switchbot-wol/issues\n"
-"POT-Creation-Date: 2026-10-09 11:58+0200\n"
+"Report-Msgid-Bugs-To: https://github.com/Felitendo/moondeck-switchbot-wol/"
+"issues\n"
+"POT-Creation-Date: 2026-10-25 23:48+0100\n"
 "PO-Revision-Date: 2026-10-09 12:00+0200\n"
 "Last-Translator: Felitendo\n"
 "Language-Team: German\n"
@@ -77,8 +78,8 @@ msgid "The login trigger is on. A wake-up from the Deck logs %s in."
 msgstr "Der Login-Trigger ist an. Ein Wecken vom Deck meldet %s an."
 
 #, sh-printf-format
-msgid "Next, pair the Deck: sudo %s host code"
-msgstr "Als Nächstes das Deck koppeln: sudo %s host code"
+msgid "Next, pair the Deck: sudo %s host pair"
+msgstr "Als Nächstes das Deck koppeln: sudo %s host pair"
 
 msgid ""
 "The login trigger is off. The PC asks for the password again, however it is "
@@ -99,6 +100,9 @@ msgstr "Unbekannte Option: %s"
 #, sh-printf-format
 msgid "The login trigger is off. Turn it on with: sudo %s host enable"
 msgstr "Der Login-Trigger ist aus. Einschalten mit: sudo %s host enable"
+
+msgid "This asks questions, so it needs a terminal."
+msgstr "Das stellt Fragen und braucht deshalb ein Terminal."
 
 #, sh-printf-format
 msgid "%s, logged in"
@@ -242,12 +246,44 @@ msgstr "Mit dem PC koppeln"
 msgid "On the PC, run this and press 2:"
 msgstr "Starte das auf dem PC und drücke 2:"
 
+msgid "The PC finds this Deck on its own."
+msgstr "Der PC findet dieses Deck von selbst."
+
+msgid "Waiting for the PC..."
+msgstr "Warte auf den PC..."
+
+msgid "c: paste a pairing code instead, Esc: back"
+msgstr "c: stattdessen einen Kopplungscode einfügen, Esc: zurück"
+
+#, sh-printf-format
+msgid "%s (%s) wants to pair. It shows a code too:"
+msgstr "%s (%s) will koppeln. Der PC zeigt auch einen Code:"
+
+msgid "Is it the same code?"
+msgstr "Ist es derselbe Code?"
+
+msgid "Not paired."
+msgstr "Nicht gekoppelt."
+
+msgid "The PC said no."
+msgstr "Der PC hat abgelehnt."
+
+#, sh-printf-format
+msgid "No PC came in %s minutes."
+msgstr "In %s Minuten kam kein PC."
+
+#, sh-printf-format
+msgid "Pairing did not work: %s"
+msgstr "Koppeln hat nicht geklappt: %s"
+
+msgid "Pair with a code"
+msgstr "Mit einem Code koppeln"
+
 msgid ""
-"Copy the line that starts with msw1: and paste it here. In Konsole, paste "
-"with Ctrl+Shift+V."
-msgstr ""
-"Kopiere die Zeile, die mit msw1: beginnt, und füge sie hier ein. In Konsole "
-"fügst du mit Strg+Umschalt+V ein."
+"When the PC does not find this Deck, it shows a pairing code. Copy the line "
+"that starts with msw1: and paste it here. In Konsole, paste with "
+"Ctrl+Shift+V."
+msgstr "Wenn der PC dieses Deck nicht findet, zeigt er einen Kopplungscode. Kopiere die Zeile, die mit msw1: beginnt, und füge sie hier ein. In Konsole fügst du mit Strg+Umschalt+V ein."
 
 msgid "Pairing code:"
 msgstr "Kopplungscode:"
@@ -257,14 +293,9 @@ msgid "They stay on this Deck, in %s, and only ever go to SwitchBot."
 msgstr "Sie bleiben auf diesem Deck, in %s, und gehen nur an SwitchBot."
 
 msgid ""
-"First the SwitchBot. A pairing code from the PC carries all of it, so "
-"nothing has to be typed here."
-msgstr ""
-"Zuerst der SwitchBot. Ein Kopplungscode vom PC bringt alles mit, dann musst "
-"du hier nichts tippen."
-
-msgid "Paste a pairing code from the PC"
-msgstr "Einen Kopplungscode vom PC einfügen"
+"First the SwitchBot. The PC can send all of it when pairing, so nothing has "
+"to be typed here."
+msgstr "Zuerst der SwitchBot. Der PC kann beim Koppeln alles mitschicken, dann musst du hier nichts tippen."
 
 msgid "Set up the SwitchBot by hand"
 msgstr "Den SwitchBot von Hand einrichten"
@@ -298,27 +329,66 @@ msgstr "Beenden"
 msgid "The SwitchBot really presses the button. Go ahead?"
 msgstr "Der SwitchBot drückt den Knopf wirklich. Weiter?"
 
+msgid "Pair with the Deck"
+msgstr "Mit dem Deck koppeln"
+
+msgid ""
+"This PC can send the SwitchBot setup to the Deck too. Then nothing has to be "
+"typed there. The credentials are not kept on this PC."
+msgstr "Dieser PC kann dem Deck auch die SwitchBot-Einrichtung schicken. Dann musst du dort nichts tippen. Die Zugangsdaten bleiben nicht auf diesem PC."
+
+msgid "Send the SwitchBot setup too?"
+msgstr "Die SwitchBot-Einrichtung mitschicken?"
+
+msgid "They are not kept on this PC. They only go to the Deck."
+msgstr "Sie bleiben nicht auf diesem PC. Sie gehen nur an das Deck."
+
+msgid "On the Deck, open the menu and press 2. This PC finds it on its own."
+msgstr "Öffne auf dem Deck das Menü und drücke 2. Dieser PC findet es von selbst."
+
+msgid "Esc: back"
+msgstr "Esc: zurück"
+
+msgid "Looking for the Deck..."
+msgstr "Suche das Deck..."
+
+msgid "No Deck found. Both have to be on the same network."
+msgstr "Kein Deck gefunden. Beide müssen im selben Netzwerk sein."
+
+msgid "Look again"
+msgstr "Noch einmal suchen"
+
+msgid "Show a pairing code instead"
+msgstr "Stattdessen einen Kopplungscode zeigen"
+
+msgid "Which Deck?"
+msgstr "Welches Deck?"
+
+msgid "One moment..."
+msgstr "Einen Moment..."
+
+#, sh-printf-format
+msgid "Found %s (%s). It shows a code too:"
+msgstr "%s (%s) gefunden. Das Deck zeigt auch einen Code:"
+
+msgid "Now say yes on the Deck too."
+msgstr "Bestätige jetzt auch auf dem Deck."
+
+#, sh-printf-format
+msgid "Paired with %s. It logs this PC in when it wakes it."
+msgstr "Mit %s gekoppelt. Es meldet diesen PC an, wenn es ihn weckt."
+
+msgid "The Deck said no."
+msgstr "Das Deck hat abgelehnt."
+
+msgid "The Deck could not save it."
+msgstr "Das Deck konnte es nicht speichern."
+
 msgid "Pairing code"
 msgstr "Kopplungscode"
 
-msgid ""
-"The code can carry the SwitchBot setup too. Then nothing has to be typed on "
-"the Deck. The credentials are not kept on this PC, they only go into the "
-"code."
-msgstr ""
-"Der Code kann auch die SwitchBot-Einrichtung mitbringen. Dann musst du auf "
-"dem Deck nichts tippen. Die Zugangsdaten bleiben nicht auf diesem PC, sie "
-"landen nur im Code."
-
-msgid "Put the SwitchBot setup into the code?"
-msgstr "Die SwitchBot-Einrichtung mit in den Code packen?"
-
-msgid "They are not kept on this PC. They only go into the code."
-msgstr "Sie bleiben nicht auf diesem PC. Sie landen nur im Code."
-
-#, sh-printf-format
-msgid "On the Deck, run %s and press 2. Then paste this line:"
-msgstr "Starte auf dem Deck %s und drücke 2. Dann füge diese Zeile ein:"
+msgid "On the Deck, open the menu, press 2 and then c. Then paste this line:"
+msgstr "Öffne auf dem Deck das Menü, drücke 2 und dann c. Dann füge diese Zeile ein:"
 
 msgid "It holds the secret of the login trigger. Keep it to yourself."
 msgstr "Er enthält das Geheimnis des Login-Triggers. Behalte ihn für dich."
@@ -350,17 +420,12 @@ msgid "Secret"
 msgstr "Geheimnis"
 
 msgid ""
-"Shared with the Deck through the pairing code. A new one turns away every "
-"Deck paired before."
-msgstr ""
-"Wird über den Kopplungscode mit dem Deck geteilt. Ein neues weist jedes "
-"vorher gekoppelte Deck ab."
+"Shared with the Deck when pairing. A new one turns away every Deck paired "
+"before."
+msgstr "Wird beim Koppeln mit dem Deck geteilt. Ein neues weist jedes vorher gekoppelte Deck ab."
 
 msgid "Turn the login trigger on or off"
 msgstr "Den Login-Trigger ein- oder ausschalten"
-
-msgid "Pairing code for the Deck"
-msgstr "Kopplungscode für das Deck"
 
 #, sh-printf-format
 msgid "Could not reach the SwitchBot API: %s"
@@ -391,9 +456,6 @@ msgstr "%d Zeichen"
 
 msgid "Up/Down: select, Enter: choose, Esc: back"
 msgstr "Hoch/Runter: auswählen, Enter: nehmen, Esc: zurück"
-
-msgid "One moment..."
-msgstr "Einen Moment..."
 
 msgid ""
 "Run this as your own user, not as root. Only the host commands need root."
@@ -452,13 +514,8 @@ msgstr "Gekoppelt. Der PC meldet sich an, wenn das Deck ihn weckt."
 msgid "SwitchBot set up: %s."
 msgstr "SwitchBot eingerichtet: %s."
 
-msgid "The code has no SwitchBot setup. Set it up by hand next."
-msgstr ""
-"Der Code enthält keine SwitchBot-Einrichtung. Richte ihn als Nächstes von "
-"Hand ein."
-
-msgid "This asks questions, so it needs a terminal."
-msgstr "Das stellt Fragen und braucht deshalb ein Terminal."
+msgid "No SwitchBot setup came with it. Set it up by hand next."
+msgstr "Es kam keine SwitchBot-Einrichtung mit. Richte ihn als Nächstes von Hand ein."
 
 msgid "The SwitchBot got the command."
 msgstr "Der SwitchBot hat den Befehl bekommen."
@@ -478,8 +535,8 @@ msgstr "MoonDeck den PC mit dem SwitchBot wecken lassen"
 msgid "Give MoonDeck its own Wake-on-LAN back"
 msgstr "MoonDeck sein eigenes Wake-on-LAN zurückgeben"
 
-msgid "Pair with the PC, with the code it shows"
-msgstr "Mit dem PC koppeln, mit dem Code, den er zeigt"
+msgid "Pair with the PC, or paste the code it shows"
+msgstr "Mit dem PC koppeln, oder den Code einfügen, den er zeigt"
 
 msgid "Show what is set up"
 msgstr "Zeigen, was eingerichtet ist"
@@ -498,6 +555,9 @@ msgstr "Den Login-Trigger einschalten"
 
 msgid "Turn it off"
 msgstr "Ihn ausschalten"
+
+msgid "Find the Deck and pair with it"
+msgstr "Das Deck finden und koppeln"
 
 msgid "Show the pairing code for the Deck"
 msgstr "Den Kopplungscode für das Deck zeigen"

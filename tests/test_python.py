@@ -1,13 +1,15 @@
 """Tests for the Python parts: the SwitchBot client, the MoonDeck settings
-editor, and both ends of the login trigger. Nothing here touches the real
-system: every path is in a temporary folder and the agent runs dry."""
+editor, both ends of the login trigger, and pairing. Nothing here touches the
+real system: every path is in a temporary folder and the agent runs dry."""
 
 import base64
 import hashlib
 import hmac
 import http.server
+import importlib.util
 import json
 import os
+import queue
 import shutil
 import socket
 import subprocess
@@ -19,6 +21,7 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB = os.path.join(ROOT, "src", "lib")
 AGENT = os.path.join(ROOT, "src", "login-agent")
+PAIR = os.path.join(LIB, "pair.py")
 FIXTURE = os.path.join(ROOT, "tests", "moondeck-settings.json")
 
 TOKEN = "a" * 96
@@ -287,6 +290,132 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("does not know this Deck", result.stdout)
         self.assertEqual(self.read_dm(), "[Autologin]\nSession=plasma\n")
+
+
+def load_pair():
+    spec = importlib.util.spec_from_file_location("pair", PAIR)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def free_port():
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+class Pairing:
+    """pair.py in the background, line by line."""
+
+    def __init__(self, test, *args, code=""):
+        self.process = subprocess.Popen(
+            [sys.executable, PAIR, *map(str, args)], env=dict(os.environ, MSW_PAIR_CODE=code),
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        self.lines = queue.Queue()
+        threading.Thread(target=self.read, daemon=True).start()
+        test.addCleanup(self.stop)
+
+    def read(self):
+        for line in self.process.stdout:
+            self.lines.put(line.split())
+        self.lines.put(["END"])
+
+    def next(self):
+        return self.lines.get(timeout=30)
+
+    def say(self, answer):
+        self.process.stdin.write(answer + "\n")
+        self.process.stdin.flush()
+
+    def stop(self):
+        self.process.kill()
+        self.process.wait()
+        self.process.stdin.close()
+        self.process.stdout.close()
+
+
+class PairTest(unittest.TestCase):
+    CODE = "msw1:" + base64.b64encode(("TriggerSecret=%s\n" % TRIGGER).encode()).decode()
+
+    def deck(self):
+        """A Deck that waits, once a scan finds it."""
+        port = free_port()
+        deck = Pairing(self, "listen", port, 30)
+        scan = subprocess.run([sys.executable, PAIR, "scan", str(port), "20", "127.0.0.1"],
+                              capture_output=True, text=True, check=False, timeout=60)
+        self.assertEqual(scan.stdout.split()[:2], ["FOUND", "127.0.0.1"])
+        return deck, port
+
+    def meet(self):
+        """A Deck and a PC that both show the same digits."""
+        deck, port = self.deck()
+        pc = Pairing(self, "send", "127.0.0.1", port, code=self.CODE)
+        pc_peer, deck_peer = pc.next(), deck.next()
+        self.assertEqual(pc_peer[0], "PEER")
+        self.assertEqual(deck_peer[:3], ["PEER", pc_peer[1], "127.0.0.1"])
+        return deck, pc
+
+    def test_pairing(self):
+        deck, pc = self.meet()
+        deck.say("yes")
+        pc.say("yes")
+        self.assertEqual(deck.next(), ["DATA", self.CODE])
+        deck.say("ok")
+        self.assertEqual(deck.next(), ["DONE"])
+        self.assertEqual(pc.next(), ["OK"])
+
+    def test_the_deck_says_no(self):
+        deck, pc = self.meet()
+        deck.say("no")
+        pc.say("yes")
+        self.assertEqual(pc.next(), ["NO"])
+
+    def test_the_pc_says_no(self):
+        deck, pc = self.meet()
+        deck.say("yes")
+        pc.say("no")
+        self.assertEqual(deck.next(), ["CANCELLED"])
+
+    def test_a_key_other_than_the_one_committed_to(self):
+        pair = load_pair()
+        deck, port = self.deck()
+        _, committed = pair.keypair()
+        _, sent = pair.keypair()
+        with socket.create_connection(("127.0.0.1", port), timeout=10) as connection:
+            stream = connection.makefile("rw", encoding="ascii", newline="\n")
+            stream.readline()
+            pair.send(stream, "COMMIT %s mallory" % pair.commitment(committed))
+            stream.readline()
+            pair.send(stream, "KEY %x" % sent)
+            self.assertEqual(stream.readline(), "")
+        # Turned away without asking, and still waiting for the real PC.
+        pc = Pairing(self, "send", "127.0.0.1", port, code=self.CODE)
+        self.assertEqual(deck.next()[0], "PEER")
+        self.assertEqual(pc.next()[0], "PEER")
+
+    def test_changed_on_the_way(self):
+        pair = load_pair()
+        encrypt, sign, _ = pair.derive(5, 7, 11, 13)
+        sealed = pair.seal(encrypt, sign, self.CODE)
+        self.assertEqual(pair.unseal(encrypt, sign, sealed), self.CODE)
+        data, tag = sealed.split(" ")
+        changed = base64.b64encode(bytes([base64.b64decode(data)[0] ^ 1]) + base64.b64decode(data)[1:])
+        self.assertIsNone(pair.unseal(encrypt, sign, "%s %s" % (changed.decode(), tag)))
+
+    def test_the_prime(self):
+        pair = load_pair()
+        # A typo in it would not survive these.
+        self.assertEqual(pow(2, pair.P - 1, pair.P), 1)
+        self.assertEqual(pow(2, (pair.P - 1) // 2 - 1, (pair.P - 1) // 2), 1)
+
+    def test_targets(self):
+        pair = load_pair()
+        home = pair.targets(["192.168.2.10/24"])
+        self.assertEqual((len(home), home[0], home[-1]), (254, "192.168.2.1", "192.168.2.254"))
+        big = pair.targets(["10.1.2.3/8"])
+        self.assertEqual((len(big), big[0]), (254, "10.1.2.1"))
+        self.assertEqual(pair.targets(["127.0.0.1"]), ["127.0.0.1"])
 
 
 if __name__ == "__main__":

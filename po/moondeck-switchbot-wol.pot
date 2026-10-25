@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: moondeck-switchbot-wol 1.0.0\n"
 "Report-Msgid-Bugs-To: https://github.com/Felitendo/moondeck-switchbot-wol/"
 "issues\n"
-"POT-Creation-Date: 2026-10-09 13:10+0200\n"
+"POT-Creation-Date: 2026-10-25 23:48+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -76,7 +76,7 @@ msgid "The login trigger is on. A wake-up from the Deck logs %s in."
 msgstr ""
 
 #, sh-printf-format
-msgid "Next, pair the Deck: sudo %s host code"
+msgid "Next, pair the Deck: sudo %s host pair"
 msgstr ""
 
 msgid ""
@@ -93,6 +93,9 @@ msgstr ""
 
 #, sh-printf-format
 msgid "The login trigger is off. Turn it on with: sudo %s host enable"
+msgstr ""
+
+msgid "This asks questions, so it needs a terminal."
 msgstr ""
 
 #, sh-printf-format
@@ -232,9 +235,43 @@ msgstr ""
 msgid "On the PC, run this and press 2:"
 msgstr ""
 
+msgid "The PC finds this Deck on its own."
+msgstr ""
+
+msgid "Waiting for the PC..."
+msgstr ""
+
+msgid "c: paste a pairing code instead, Esc: back"
+msgstr ""
+
+#, sh-printf-format
+msgid "%s (%s) wants to pair. It shows a code too:"
+msgstr ""
+
+msgid "Is it the same code?"
+msgstr ""
+
+msgid "Not paired."
+msgstr ""
+
+msgid "The PC said no."
+msgstr ""
+
+#, sh-printf-format
+msgid "No PC came in %s minutes."
+msgstr ""
+
+#, sh-printf-format
+msgid "Pairing did not work: %s"
+msgstr ""
+
+msgid "Pair with a code"
+msgstr ""
+
 msgid ""
-"Copy the line that starts with msw1: and paste it here. In Konsole, paste "
-"with Ctrl+Shift+V."
+"When the PC does not find this Deck, it shows a pairing code. Copy the line "
+"that starts with msw1: and paste it here. In Konsole, paste with "
+"Ctrl+Shift+V."
 msgstr ""
 
 msgid "Pairing code:"
@@ -245,11 +282,8 @@ msgid "They stay on this Deck, in %s, and only ever go to SwitchBot."
 msgstr ""
 
 msgid ""
-"First the SwitchBot. A pairing code from the PC carries all of it, so "
-"nothing has to be typed here."
-msgstr ""
-
-msgid "Paste a pairing code from the PC"
+"First the SwitchBot. The PC can send all of it when pairing, so nothing has "
+"to be typed here."
 msgstr ""
 
 msgid "Set up the SwitchBot by hand"
@@ -281,23 +315,65 @@ msgstr ""
 msgid "The SwitchBot really presses the button. Go ahead?"
 msgstr ""
 
-msgid "Pairing code"
+msgid "Pair with the Deck"
 msgstr ""
 
 msgid ""
-"The code can carry the SwitchBot setup too. Then nothing has to be typed on "
-"the Deck. The credentials are not kept on this PC, they only go into the "
-"code."
+"This PC can send the SwitchBot setup to the Deck too. Then nothing has to be "
+"typed there. The credentials are not kept on this PC."
 msgstr ""
 
-msgid "Put the SwitchBot setup into the code?"
+msgid "Send the SwitchBot setup too?"
 msgstr ""
 
-msgid "They are not kept on this PC. They only go into the code."
+msgid "They are not kept on this PC. They only go to the Deck."
+msgstr ""
+
+msgid "On the Deck, open the menu and press 2. This PC finds it on its own."
+msgstr ""
+
+msgid "Esc: back"
+msgstr ""
+
+msgid "Looking for the Deck..."
+msgstr ""
+
+msgid "No Deck found. Both have to be on the same network."
+msgstr ""
+
+msgid "Look again"
+msgstr ""
+
+msgid "Show a pairing code instead"
+msgstr ""
+
+msgid "Which Deck?"
+msgstr ""
+
+msgid "One moment..."
 msgstr ""
 
 #, sh-printf-format
-msgid "On the Deck, run %s and press 2. Then paste this line:"
+msgid "Found %s (%s). It shows a code too:"
+msgstr ""
+
+msgid "Now say yes on the Deck too."
+msgstr ""
+
+#, sh-printf-format
+msgid "Paired with %s. It logs this PC in when it wakes it."
+msgstr ""
+
+msgid "The Deck said no."
+msgstr ""
+
+msgid "The Deck could not save it."
+msgstr ""
+
+msgid "Pairing code"
+msgstr ""
+
+msgid "On the Deck, open the menu, press 2 and then c. Then paste this line:"
 msgstr ""
 
 msgid "It holds the secret of the login trigger. Keep it to yourself."
@@ -327,14 +403,11 @@ msgid "Secret"
 msgstr ""
 
 msgid ""
-"Shared with the Deck through the pairing code. A new one turns away every "
-"Deck paired before."
+"Shared with the Deck when pairing. A new one turns away every Deck paired "
+"before."
 msgstr ""
 
 msgid "Turn the login trigger on or off"
-msgstr ""
-
-msgid "Pairing code for the Deck"
 msgstr ""
 
 #, sh-printf-format
@@ -365,9 +438,6 @@ msgid "%d characters"
 msgstr ""
 
 msgid "Up/Down: select, Enter: choose, Esc: back"
-msgstr ""
-
-msgid "One moment..."
 msgstr ""
 
 msgid ""
@@ -418,10 +488,7 @@ msgstr ""
 msgid "SwitchBot set up: %s."
 msgstr ""
 
-msgid "The code has no SwitchBot setup. Set it up by hand next."
-msgstr ""
-
-msgid "This asks questions, so it needs a terminal."
+msgid "No SwitchBot setup came with it. Set it up by hand next."
 msgstr ""
 
 msgid "The SwitchBot got the command."
@@ -442,7 +509,7 @@ msgstr ""
 msgid "Give MoonDeck its own Wake-on-LAN back"
 msgstr ""
 
-msgid "Pair with the PC, with the code it shows"
+msgid "Pair with the PC, or paste the code it shows"
 msgstr ""
 
 msgid "Show what is set up"
@@ -461,6 +528,9 @@ msgid "Turn the login trigger on"
 msgstr ""
 
 msgid "Turn it off"
+msgstr ""
+
+msgid "Find the Deck and pair with it"
 msgstr ""
 
 msgid "Show the pairing code for the Deck"

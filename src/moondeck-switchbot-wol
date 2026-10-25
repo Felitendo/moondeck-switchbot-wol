@@ -76,15 +76,19 @@ msw_do_disable() {
 }
 
 # msw_do_pair [code]
+# Without a code, it waits for the PC to find this Deck.
 msw_do_pair() {
-	local code="${1:-}"
+	local code="${1:-}" rc
 
 	if [[ -z $code ]]; then
 		[[ -t 0 && -t 1 ]] || { msw_bad "$(msw_msg "No pairing code given.")"; return 1; }
 		msw_ui_begin
-		msw_ui_line "$(msw_msg "Pairing code:")" '' secret
+		msw_ui_pair
+		rc=$?
 		msw_ui_end
-		code="$MSW_LINE"
+		printf '%s' "$MSW_CLEAR"
+		[[ -n $MSW_UI_MSG ]] && printf '%s\n' "$MSW_UI_MSG"
+		return "$rc"
 	fi
 
 	if ! msw_pair_decode "$code"; then
@@ -102,7 +106,7 @@ msw_do_pair() {
 	else
 		msw_config_load
 		msw_switchbot_ready \
-			|| msw_note "$(msw_msg "The code has no SwitchBot setup. Set it up by hand next.")"
+			|| msw_note "$(msw_msg "No SwitchBot setup came with it. Set it up by hand next.")"
 	fi
 }
 
@@ -171,7 +175,7 @@ msw_do_help() {
 	$(msw_msg "On the Steam Deck:")
 	  enable              $(msw_msg "Let MoonDeck wake the PC with the SwitchBot")
 	  disable             $(msw_msg "Give MoonDeck its own Wake-on-LAN back")
-	  pair [CODE]         $(msw_msg "Pair with the PC, with the code it shows")
+	  pair [CODE]         $(msw_msg "Pair with the PC, or paste the code it shows")
 	  setup               $(msw_msg "Set up the SwitchBot by hand")
 	  press               $(msw_msg "Press the button now")
 	  status              $(msw_msg "Show what is set up")
@@ -181,6 +185,7 @@ msw_do_help() {
 	  host                $(msw_msg "The menu for this end")
 	  host enable         $(msw_msg "Turn the login trigger on")
 	  host disable        $(msw_msg "Turn it off")
+	  host pair           $(msw_msg "Find the Deck and pair with it")
 	  host code [--new]   $(msw_msg "Show the pairing code for the Deck")
 	  host status         $(msw_msg "Show what is set up")
 
@@ -198,6 +203,7 @@ msw_host_main() {
 	case $cmd in
 		enable)  msw_do_host_enable "$@" ;;
 		disable) msw_do_host_disable "$@" ;;
+		pair)    msw_do_host_pair "$@" ;;
 		code)    msw_do_host_code "$@" ;;
 		status)  msw_do_host_status "$@" ;;
 		'')

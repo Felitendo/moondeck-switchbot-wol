@@ -40,9 +40,11 @@ from there.
 	since *enable* is left as it is.
 
 *pair* [_code_]
-	Pair with the PC, using the code that *host code* shows there. Without a
-	code it asks for one. A code can carry the SwitchBot setup as well, so
-	nothing has to be typed on the Deck.
+	Pair with the PC. Without a code, wait until *host pair* on the PC finds
+	this Deck, then show six digits to compare with the PC's. With a code,
+	use the one that the PC shows when it cannot find the Deck. Either way
+	the PC can send the SwitchBot setup as well, so nothing has to be typed
+	on the Deck.
 
 *setup*
 	Set up the SwitchBot by hand: the token and the secret of the SwitchBot
@@ -79,21 +81,40 @@ through *sudo*, *run0* or *doas*.
 *host disable*
 	Turn it off again. The secret is kept, so a paired Deck stays paired.
 
+*host pair*
+	Look for a Deck that waits in *pair*, on this PC's network, and send it
+	the secret of the login trigger. Both ends show six digits, and nothing
+	is sent before the user on both ends says they match. It can send the
+	SwitchBot setup as well. The credentials are not stored on the PC. When
+	no Deck is found, it shows a pairing code instead.
+
 *host code* [*--new*]
-	Print the pairing code for the Deck. With *--new* a new secret is made
-	first, which turns away every Deck paired before. The menu can put the
-	SwitchBot setup into the code as well. The credentials are not stored on
-	the PC.
+	Print the pairing code for the Deck, for a network where *host pair*
+	cannot reach it. With *--new* a new secret is made first, which turns
+	away every Deck paired before.
 
 *host status*
 	Show what is set up, and when the last wake-up came.
+
+# PAIRING
+
+While pairing, the Deck waits on TCP port 58472. The PC tries every address of
+its network on that port, or the /24 around its own address in a bigger
+network.
+
+Both ends agree on a key with Diffie-Hellman (RFC 3526, group 14), and show six
+digits made from it. Somebody in the middle would have a different key with
+each end, so the digits would not match. The PC commits to its half of the key
+before it sees the Deck's, so nobody can try keys until the digits match by
+chance. Once the user on both ends says they match, the PC sends the pairing
+code, encrypted and signed with the key.
 
 # THE LOGIN TRIGGER
 
 After the press, the Deck knocks on the PC every few seconds until it answers.
 The PC sends a random challenge, and the Deck answers with an HMAC-SHA256 of it,
-keyed with the secret from the pairing code. The secret itself never goes over
-the network.
+keyed with the secret from pairing. On a wake-up, the secret itself never goes
+over the network.
 
 The address MoonDeck uses for the PC is tried first, then its host name, so a
 new address from the DHCP server changes nothing.

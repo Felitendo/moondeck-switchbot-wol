@@ -1,10 +1,12 @@
 # shellcheck shell=bash
 #
-# The pairing code: everything the Deck needs from the PC, in one line.
+# Pairing: everything the Deck needs from the PC, in one line.
 #
-# It is made on the PC, where there is a real keyboard, and pasted on the Deck,
-# where there is not. It always carries the login trigger and, when wanted,
-# the SwitchBot setup too, so nothing has to be typed on the Deck.
+# The line is made on the PC, where there is a real keyboard. It always carries
+# the login trigger and, when wanted, the SwitchBot setup too, so nothing has
+# to be typed on the Deck. The PC finds the Deck on its network and sends it
+# over, see pair.py. Where it cannot, the line is pasted on the Deck instead,
+# as a pairing code.
 #
 # Format: "msw1:" and the base64 of "Key=Value" lines, with the same keys as
 # the Deck's config. Only the keys below are read from a code.
@@ -57,5 +59,70 @@ msw_pair_apply() {
 	local key
 	for key in "${!MSW_PAIR[@]}"; do
 		msw_config_set "$key" "${MSW_PAIR[$key]}" || return 1
+	done
+}
+
+# ---------------------------------------------------------------------------
+# Over the network
+# ---------------------------------------------------------------------------
+
+# Where the Deck waits for the PC, and how long either end waits for the other.
+MSW_PAIR_PORT=$(( MSW_DEFAULT_PORT + 1 ))
+MSW_PAIR_WAIT=300
+
+MSW_PAIR_PID=''
+MSW_PAIR_CODE=''
+
+# msw_pair_start <pair.py arguments...>
+# Runs pair.py next to the menu. Its events come in on MSW_PAIR_IN, the
+# answers go out on MSW_PAIR_OUT. The code to send is taken from MSW_PAIR_CODE,
+# so it stays out of the process list.
+msw_pair_start() {
+	coproc MSW_PAIR_PROC {
+		MSW_PAIR_CODE="$MSW_PAIR_CODE" exec python3 "$MSW_LIBDIR/pair.py" "$@" 2> /dev/null
+	}
+	MSW_PAIR_PID="$MSW_PAIR_PROC_PID"
+	# Copies, because bash closes the coprocess's own as soon as it ends.
+	exec {MSW_PAIR_IN}<&"${MSW_PAIR_PROC[0]}" {MSW_PAIR_OUT}>&"${MSW_PAIR_PROC[1]}"
+}
+
+msw_pair_stop() {
+	[[ -n $MSW_PAIR_PID ]] || return 0
+	kill "$MSW_PAIR_PID" 2> /dev/null
+	wait "$MSW_PAIR_PID" 2> /dev/null
+	exec {MSW_PAIR_IN}<&- {MSW_PAIR_OUT}>&-
+	MSW_PAIR_PID=''
+}
+
+# msw_pair_answer <answer>
+msw_pair_answer() {
+	printf '%s\n' "$1" >&"$MSW_PAIR_OUT"
+}
+
+# msw_pair_next
+# The next event from pair.py in MSW_PAIR_EVENT, the rest of its line in
+# MSW_PAIR_ARGS. A key pressed meanwhile is the event KEY, with the key in
+# MSW_KEY. When pair.py ends, the event is END.
+msw_pair_next() {
+	local line rc
+
+	while true; do
+		IFS= read -r -t 0.2 -u "$MSW_PAIR_IN" line
+		rc=$?
+		if (( rc == 0 )); then
+			MSW_PAIR_EVENT="${line%% *}"
+			MSW_PAIR_ARGS=''
+			[[ $line == *' '* ]] && MSW_PAIR_ARGS="${line#* }"
+			return 0
+		fi
+		# Above 128 is the timeout, so pair.py is still there.
+		if (( rc < 128 )); then
+			MSW_PAIR_EVENT=END
+			return 0
+		fi
+		if msw_read_key 0.05; then
+			MSW_PAIR_EVENT=KEY
+			return 0
+		fi
 	done
 }

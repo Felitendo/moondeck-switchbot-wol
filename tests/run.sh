@@ -86,6 +86,7 @@ check "pair writes the secret" "$(cat "$config")" \
 	grep -q "^TriggerSecret=$(cat "$box/sandbox/etc/secret")$" "$config"
 check "config is private" "$(stat -c %a "$config")" test "$(stat -c %a "$config")" = 600
 refuse "pair refuses junk" "not a pairing code" msw pair "hello"
+refuse "host pair needs a terminal" "needs a terminal" msw host pair < /dev/null
 
 # A code that carries the SwitchBot too, as the menu on the PC makes it.
 full="$(MSW_LIBDIR="$root/src/lib" bash -c '
@@ -132,6 +133,6 @@ rm -f "$box/sandbox/state/moondeck-switchbot-wol/last_press"
 refuse "wake with a wrong token" "said no: Unauthorized" msw --shim gaming-pc 127.0.0.1 9 AA:BB:CC:DD:EE:FF
 
 expect "host disable" "login trigger is off" msw host disable
-expect "help" "host code" msw --help
+expect "help" "host pair" msw --help
 
 exit "$failed"

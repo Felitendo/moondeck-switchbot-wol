@@ -107,12 +107,17 @@ msw_ufw_active() {
 	msw_have ufw && ufw status 2>/dev/null | grep -qi '^Status: active'
 }
 
-# The network of this PC's address, for example 192.168.2.0/24. Containers and
-# VPNs bring addresses of their own, so those are skipped.
+# This PC's address with its prefix, for example 192.168.2.10/24. Containers
+# and VPNs bring addresses of their own, so those are skipped.
+msw_host_address() {
+	ip -4 -o addr show scope global 2>/dev/null \
+		| awk '$2 !~ /^(docker|virbr|br-|veth|tailscale|wg|tun)/ { print $4; exit }'
+}
+
+# The network of it, for example 192.168.2.0/24.
 msw_host_subnet() {
 	local cidr
-	cidr="$(ip -4 -o addr show scope global 2>/dev/null \
-		| awk '$2 !~ /^(docker|virbr|br-|veth|tailscale|wg|tun)/ { print $4; exit }')"
+	cidr="$(msw_host_address)"
 	[[ -n $cidr ]] || return 1
 	python3 -c 'import ipaddress, sys; print(ipaddress.ip_network(sys.argv[1], strict=False))' "$cidr"
 }
@@ -188,7 +193,7 @@ msw_do_host_enable() {
 
 	msw_ok "$(msw_msg "The login trigger is on. A wake-up from the Deck logs %s in." "$HCFG_USER")"
 	[[ -n ${MSW_IN_MENU:-} ]] \
-		|| msw_note "$(msw_msg "Next, pair the Deck: sudo %s host code" "$MSW_NAME")"
+		|| msw_note "$(msw_msg "Next, pair the Deck: sudo %s host pair" "$MSW_NAME")"
 }
 
 msw_do_host_disable() {
@@ -239,6 +244,23 @@ msw_do_host_code() {
 	[[ $HCFG_ENABLED == yes ]] \
 		|| msw_note "$(msw_msg "The login trigger is off. Turn it on with: sudo %s host enable" "$MSW_NAME")" >&2
 	msw_pair_encode "${MSW_HOST_PAIRS[@]}"
+}
+
+msw_do_host_pair() {
+	local rc
+
+	msw_need_root
+	if [[ ! -t 0 || ! -t 1 ]]; then
+		msw_bad "$(msw_msg "This asks questions, so it needs a terminal.")"
+		return 1
+	fi
+	msw_ui_begin
+	msw_ui_host_pair
+	rc=$?
+	msw_ui_end
+	printf '%s' "$MSW_CLEAR"
+	[[ -n $MSW_UI_MSG ]] && printf '%s\n' "$MSW_UI_MSG"
+	return "$rc"
 }
 
 # The last login trigger, as the agent wrote it down.

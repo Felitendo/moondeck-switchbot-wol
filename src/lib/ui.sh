@@ -60,15 +60,16 @@ msw_ui_text() {
 	done < <(printf '%s\n' "$1" | fold -s -w $(( width - 4 )))
 }
 
-# msw_read_key
+# msw_read_key [timeout]
 # One keypress in MSW_KEY, arrows and the like by name. The tail of an escape
-# sequence is read here, so it is not taken for three separate keys.
+# sequence is read here, so it is not taken for three separate keys. Returns 1
+# at the end of input, or when no key came within the timeout.
 MSW_KEY=''
 
 msw_read_key() {
 	local k rest
 
-	IFS= read -rsn1 k || return 1
+	IFS= read -rsn1 ${1:+-t "$1"} k || return 1
 	case $k in
 		$'\e')
 			MSW_KEY=escape
@@ -101,6 +102,12 @@ msw_ui_yesno() {
 	msw_read_key || return 1
 	printf '\n'
 	[[ $MSW_KEY == [yYjJ] ]]
+}
+
+# msw_ui_digits <digits>
+# The six digits both ends show while pairing, big enough to compare.
+msw_ui_digits() {
+	printf '\n      %s\n' "$MSW_C_BOLD${1:0:3} ${1:3}$MSW_C_RESET"
 }
 
 # msw_ui_line <label> [initial] [secret]
@@ -204,16 +211,23 @@ MSW_IN_MENU=''
 
 # msw_ui_run <command...>
 # Runs an action in this shell, with its output kept for the menu. Several in a
-# row add up.
+# row add up. Returns what the action returned.
 msw_ui_run() {
-	local tmp
+	local tmp rc
 
 	printf '  %s\n' "$(msw_dim "$(msw_msg "One moment...")")"
 	tmp="$(mktemp)" || { "$@"; return; }
 	"$@" > "$tmp" 2>&1
+	rc=$?
 	MSW_UI_MSG+="${MSW_UI_MSG:+$'\n'}$(< "$tmp")"
 	rm -f -- "$tmp"
+	return "$rc"
 }
+
+# msw_ui_ok <message>, msw_ui_bad <message>
+# A result for the menu to show, the way msw_ui_run keeps one.
+msw_ui_ok()  { MSW_UI_MSG+="${MSW_UI_MSG:+$'\n'}$(msw_ok "$1")"; }
+msw_ui_bad() { MSW_UI_MSG+="${MSW_UI_MSG:+$'\n'}$(msw_bad "$1" 2>&1)"; }
 
 # msw_ui_show_msg
 msw_ui_show_msg() {

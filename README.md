@@ -61,8 +61,8 @@ moondeck-switchbot-wol host
   <img src="res/screenshots/host.png" alt="The menu on the PC in Konsole: login trigger on, logs in alex" width="620">
 </p>
 
-Press **1** to turn the login trigger on, then **2** for the pairing code. Say yes to the SwitchBot
-question, and the code carries everything.
+Press **1** to turn the login trigger on, then **2** to pair with the Deck. Say yes to the
+SwitchBot question, and the Deck gets everything from the PC.
 
 On the Deck, the installer opens the menu. Later it is `~/.local/bin/moondeck-switchbot-wol`.
 
@@ -70,8 +70,15 @@ On the Deck, the installer opens the menu. Later it is `~/.local/bin/moondeck-sw
   <img src="res/screenshots/menu.png" alt="The menu on the Deck in Konsole: SwitchBot wake-up on, MoonDeck wakes gaming-pc" width="620">
 </p>
 
-Press **1** and paste the code. Then switch to Game Mode. MoonDeck wakes your PC _✨just like
-that✨_.
+Press **1** and pick **Pair with the PC**. The PC finds the Deck on its own, and both show the same
+code. Press **y** on both.
+
+<p align="center">
+  <img src="res/screenshots/pair-pc.png" alt="Pairing on the PC in Konsole: found steamdeck, it shows a code too: 085 324" width="400">
+  <img src="res/screenshots/pair-deck.png" alt="Pairing on the Deck in Konsole: gaming-pc wants to pair, it shows a code too: 085 324" width="400">
+</p>
+
+Then switch to Game Mode. MoonDeck wakes your PC _✨just like that✨_.
 
 ## More
 
@@ -82,7 +89,8 @@ that✨_.
 |---|---|
 | Wake-up | MoonDeck runs this instead of sending a magic packet. It asks the SwitchBot cloud to press the button. |
 | MoonDeck | `enable` sets it up for you: this program, one wake-up only (a second press turns the PC off), and 3 minutes to boot. `disable` puts back what was there. |
-| Login | The Deck proves that it woke the PC, with a secret that never goes over the network. The PC logs you in once. Switched on by hand, it still asks for the password. |
+| Pairing | The PC looks for the Deck on its network. The code on both comes from a key they share, so you know they found each other. What the PC sends is encrypted with it. |
+| Login | The Deck proves that it woke the PC, with the secret from pairing. On a wake-up, the secret never goes over the network. The PC logs you in once. Switched on by hand, it still asks for the password. |
 | Address | The Deck uses the address MoonDeck has for the PC, so a new one from your router changes nothing. |
 | Push | Optional: a push through [ntfy](https://ntfy.sh) once the PC is ready to stream. |
 
@@ -98,13 +106,14 @@ The login works with Plasma Login and SDDM.
 | `moondeck-switchbot-wol` | The menu on the Deck |
 | `… enable` | Let MoonDeck use the SwitchBot |
 | `… disable` | Give MoonDeck its Wake-on-LAN back |
-| `… pair CODE` | Pair with the PC |
+| `… pair [CODE]` | Pair with the PC, or paste its code |
 | `… press` | Press the button now |
 | `… log` | The last wake-ups |
 | `moondeck-switchbot-wol host` | The menu on the PC |
 | `… host enable` | Turn the login trigger on |
 | `… host disable` | Turn it off |
-| `… host code` | The pairing code |
+| `… host pair` | Find the Deck and pair with it |
+| `… host code` | A pairing code, for when the PC cannot find the Deck |
 
 </details>
 
@@ -114,6 +123,9 @@ The login works with Plasma Login and SDDM.
 - **The device list is empty.** Pair the Bot with a hub and turn on **Cloud Services** for it in the
   SwitchBot app.
 - **The Bot clicks, but the PC stays off.** Check that the arm reaches the button, and the battery.
+- **The PC does not find the Deck.** Both have to be on the same network, and guest Wi-Fi often
+  keeps devices apart. Pick **Show a pairing code instead** on the PC, and press **c** on the Deck
+  to paste it.
 - **MoonDeck says the wake-up failed.** `moondeck-switchbot-wol log` says why.
 - **The PC stays at its login screen.** The log on the Deck says what the PC answered.
   `journalctl -u 'moondeck-switchbot-wol-login@*'` shows the PC's side.
