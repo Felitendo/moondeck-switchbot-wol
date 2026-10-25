@@ -94,8 +94,10 @@ full="$(MSW_LIBDIR="$root/src/lib" bash -c '
 		"Token=$1" "Secret=$2" Device=C0FFEE000001 "DeviceName=PC Power" Command=press
 ' _ "$(printf 'a%.0s' {1..96})" "$(printf 'b%.0s' {1..32})")"
 expect "pair with SwitchBot" "SwitchBot set up: PC Power" msw pair "$full"
-# Nothing listens for the login trigger here, so it should give up quickly.
-printf 'KnockTimeout=1\n' >> "$config"
+# A port nothing listens on, so the knock gives up quickly. The default one
+# may be the real login trigger of this machine.
+free="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+printf 'KnockTimeout=1\nTriggerPort=%s\n' "$free" >> "$config"
 expect "status" "SwitchBot +PC Power" msw status
 
 # MoonDeck: on, and back off to exactly what it was.
