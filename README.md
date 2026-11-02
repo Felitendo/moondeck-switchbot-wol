@@ -7,7 +7,7 @@
 <h3 align="center">Wake your PC from the Steam Deck with a SwitchBot.</h3>
 
 <p align="center">
-  For <a href="https://github.com/MoonDeckTeam/moondeck"><img src="res/moondeck.png" alt="" height="20" align="top"> MoonDeck</a>, when Wake-on-LAN does not work. And the PC logs in on its own, but only for the Deck.
+  For <a href="https://github.com/MoonDeckTeam/moondeck">MoonDeck</a>, when Wake-on-LAN does not work. And the PC logs in on its own, but only for the Deck.
 </p>
 
 <h5 align="center">
